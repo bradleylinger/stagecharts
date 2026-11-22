@@ -19,7 +19,7 @@ struct SongView: View {
     @State private var metrics = ScrollMetrics()
     @State private var editingNote: EditingNote?
     @State private var swipeOffset: CGFloat = 0
-    @State private var chromeHidden = false
+    @State private var chromeHidden = ProcessInfo.processInfo.arguments.contains("-chromeHidden")   // testing
     @State private var showOriginal = false
     @State private var showAIConvert = false
     @State private var showTransition = false     // iOS: tap the chart to hide / show the top bar
@@ -82,17 +82,6 @@ struct SongView: View {
         #endif
     }
     private var size: CGFloat { (isPhone ? 15 : 22) * settings.fontScale }
-
-    /// Room above the title: status bar + top bar while the bar shows; just the status bar area
-    /// (camera housing) when it's hidden, so the music uses that space.
-    private var topBarSpace: CGFloat {
-        #if os(iOS)
-        let top = UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }.first?.safeAreaInsets.top ?? 20
-        return chromeHidden ? top : top + 50      // bar hidden: the chart moves up into its space
-        #else
-        return 0
-        #endif
-    }
 
     var body: some View {
         Group {
@@ -184,7 +173,7 @@ struct SongView: View {
                 .scrollTargetLayout()
                 .padding(.horizontal, horizontalPadding)
                 .padding(.bottom, size * 1.2)
-                .padding(.top, (chromeHidden ? size * 0.4 : size * 1.2) + max(0, topBarSpace - metrics.insetTop))
+                .padding(.top, (chromeHidden ? size * 0.4 : size * 1.2) + max(0, geo.safeAreaInsets.top - metrics.insetTop))
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .background(style.background)
@@ -236,7 +225,7 @@ struct SongView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(chromeHidden ? .hidden : .visible, for: .navigationBar)
         .statusBarHidden(chromeHidden)
-        .onChange(of: file.id) { _, _ in chromeHidden = false }
+        .onChange(of: file.id) { _, _ in if !ProcessInfo.processInfo.arguments.contains("-chromeHidden") { chromeHidden = false } }
         #endif
     }
 

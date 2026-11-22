@@ -23,7 +23,7 @@ struct ContentView: View {
     @State private var newSetName = ""
     @State private var showNewSet = false
     @State private var pendingSongForNewSet: String?
-    @State private var columnVisibility = NavigationSplitViewVisibility.automatic
+    @State private var columnVisibility: NavigationSplitViewVisibility = ProcessInfo.processInfo.arguments.contains("-showSidebar") ? .all : .automatic
     /// Direction of the last next/previous move: the new song slides in from that side (0 = crossfade).
     @State private var songDirection = 0
     @AppStorage(FollowerCapo.storageKey) private var followerCaposRaw = ""

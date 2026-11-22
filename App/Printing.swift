@@ -91,14 +91,7 @@ struct ChartHeaderView: View {
             .padding(.vertical, size * 0.15)
             .background(Color.red, in: RoundedRectangle(cornerRadius: size * 0.25))
             .fixedSize()
-        let shapes = r.shapeKey.map {
-            Text("\($0.description) shapes").font(ChartFonts.heading(size * 0.8)).foregroundStyle(Color.red).fixedSize()
-        }
-        if stacked {
-            VStack(alignment: .trailing, spacing: size * 0.2) { badge; shapes }
-        } else {
-            HStack(spacing: size * 0.5) { badge; shapes.map { $0.font(ChartFonts.heading(size * 0.9)) } }
-        }
+        badge
     }
 
     private var keyTempoLine: String {

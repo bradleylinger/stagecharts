@@ -1,0 +1,62 @@
+name: StageCharts
+options:
+  bundleIdPrefix: local.stagecharts
+  deploymentTarget:
+    iOS: "15.0"
+    macOS: "15.0"
+packages:
+  ChordProKit:
+    path: .
+targets:
+  StageCharts:
+    type: application
+    supportedDestinations: [iOS, macOS]
+    info:
+      path: App/Info.plist
+      properties:
+        NSLocalNetworkUsageDescription: StageCharts uses the local network to receive MIDI from your computer and to share set lists and song changes with your band's iPads.
+        NSBonjourServices: [_apple-midi._udp, _stagecharts._tcp, _stagecharts._udp]
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: com.bradlinger.stagecharts.set
+            UTTypeDescription: StageCharts Set List
+            UTTypeConformsTo: [public.json, public.data]
+            UTTypeTagSpecification:
+              public.filename-extension: [stageset]
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: StageCharts Set List
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Owner
+            LSItemContentTypes: [com.bradlinger.stagecharts.set]
+          - CFBundleTypeName: Chord Chart
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [com.adobe.pdf, public.plain-text]
+    sources:
+      - path: App
+      - path: samples
+        buildPhase: resources
+    dependencies:
+      - package: ChordProKit
+        product: ChordProKit
+      - package: ChordProKit
+        product: StageMIDI
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bradlinger.stagecharts
+        DEVELOPMENT_TEAM: 7XA8LJU26H
+        PRODUCT_NAME: StageCharts
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: StageCharts
+        INFOPLIST_KEY_UIFileSharingEnabled: YES
+        INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIStatusBarHidden: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        TARGETED_DEVICE_FAMILY: "2"
+        SWIFT_VERSION: "5.0"
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_PREVIEWS: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

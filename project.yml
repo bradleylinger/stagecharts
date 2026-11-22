@@ -17,6 +17,7 @@ targets:
     info:
       path: App/Info.plist
       properties:
+        ITSAppUsesNonExemptEncryption: false
         NSLocalNetworkUsageDescription: StageCharts uses the local network to receive MIDI from your computer and to share set lists and song changes with your band's iPads.
         StageChartsGoogleClientID: 647215029653-gkhrq68kcvtkqu768atsmf1bvt3p3enj.apps.googleusercontent.com
         SUFeedURL: https://github.com/bradleylinger/stagecharts/releases/latest/download/appcast.xml

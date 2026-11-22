@@ -24,6 +24,8 @@ struct SettingsView: View {
     @State private var pendingSongRow: String?
     @State private var folderError: String?
 
+    @State private var showCCLIReport = false
+
     var body: some View {
         NavigationStack {
             Form {
@@ -42,6 +44,13 @@ struct SettingsView: View {
                 monitorSection
                 GoogleDriveSection()
                 songSelectSection
+                if #available(iOS 16.0, *) {
+                Section {
+                    Button("CCLI usage report…") { showCCLIReport = true }
+                } footer: {
+                    Text("Songs used in your set lists over a period, with CCLI numbers, ready for your CCLI copy report.")
+                }
+                }
                 // The folder option is for iCloud Drive / Dropbox users; hidden while Google sync is on.
                 if !googleAuth.isSignedIn { librarySection }
                 Section("Display") {
@@ -55,6 +64,9 @@ struct SettingsView: View {
             }
             .formStyle(.grouped)
             .navigationTitle("Settings")
+            .sheet(isPresented: $showCCLIReport) {
+                if #available(iOS 16.0, *) { CCLIReportView() }
+            }
             .toolbar {
                 if showsDoneButton {
                     ToolbarItem(placement: .confirmationAction) {

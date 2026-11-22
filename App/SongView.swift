@@ -19,6 +19,7 @@ struct SongView: View {
     @State private var metrics = ScrollMetrics()
     @State private var editingNote: EditingNote?
     @State private var swipeOffset: CGFloat = 0
+    @State private var chromeHidden = false     // iOS: tap the chart to hide / show the top bar
     @State private var editingInfo = false
 
     struct EditingNote: Identifiable {
@@ -73,6 +74,17 @@ struct SongView: View {
     }
     private var size: CGFloat { (isPhone ? 15 : 22) * settings.fontScale }
 
+    /// Room for the status bar + top bar above the title (the bar overlays the chart, so the
+    /// chart doesn't jump when it's hidden or shown).
+    private var topBarSpace: CGFloat {
+        #if os(iOS)
+        let top = UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }.first?.safeAreaInsets.top ?? 20
+        return top + 50
+        #else
+        return 0
+        #endif
+    }
+
     var body: some View {
         if let pdf = file.pdfURL { pdfBody(pdf) } else { textBody }
     }
@@ -113,7 +125,7 @@ struct SongView: View {
     private var textBody: some View {
         let song = displayed
         return GeometryReader { geo in
-            let horizontalPadding = isPhone ? 14 : max(24, geo.size.width * 0.05)
+            let horizontalPadding = isPhone ? 8 : max(16, geo.size.width * 0.03)
             let usable = geo.size.width - horizontalPadding * 2
             let columnCount = columns.count(forWidth: usable, textSize: size)
             ScrollView {
@@ -141,9 +153,15 @@ struct SongView: View {
                 .scrollTargetLayout()
                 .padding(.horizontal, horizontalPadding)
                 .padding(.vertical, size * 1.2)
+                .padding(.top, topBarSpace)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .background(style.background)
+            #if os(iOS)
+            .ignoresSafeArea(.container, edges: .top)        // the top bar overlays the chart instead of pushing it
+            .contentShape(Rectangle())
+            .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { chromeHidden.toggle() } }
+            #endif
             .scrollPosition($position)
             .onScrollGeometryChange(for: ScrollMetrics.self) { g in
                 ScrollMetrics(offset: g.contentOffset.y + g.contentInsets.top,
@@ -185,6 +203,9 @@ struct SongView: View {
         .navigationTitle(song.title)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(chromeHidden ? .hidden : .visible, for: .navigationBar)
+        .statusBarHidden(chromeHidden)
+        .onChange(of: file.id) { _, _ in chromeHidden = false }
         #endif
     }
 
@@ -301,7 +322,7 @@ struct SongView: View {
     private var rendered: RenderedSong { RenderedSong(file: file, semitones: semitones, capo: capo, tempo: library.settings(for: file.id).tempo) }
 
     private func header(_ song: ChordProSong) -> some View {
-        ChartHeaderView(r: rendered, size: size, style: style)
+        ChartHeaderView(r: rendered, size: size, style: style, compact: true)
     }
 
     private func footer(_ song: ChordProSong) -> some View {

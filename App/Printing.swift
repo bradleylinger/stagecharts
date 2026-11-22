@@ -43,19 +43,27 @@ struct ChartHeaderView: View {
     let r: RenderedSong
     let size: CGFloat
     let style: ChartStyle
+    /// On screen: writers are left out (they're in the footer) and the capo sits beside the title.
+    var compact = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: size * 0.15) {
-            Text(r.song.title)
-                .font(ChartFonts.heading(size * 2.1))
-                .foregroundStyle(style.text)
-                .padding(.bottom, size * 0.2)
-            ForEach(r.song.artists, id: \.self) { Text($0) }
-                .font(ChartFonts.lyric(size * 0.95))
-                .foregroundStyle(style.text)
-            ForEach(r.song.subtitles, id: \.self) { Text("(\($0))") }
-                .font(ChartFonts.lyric(size * 0.95))
-                .foregroundStyle(style.text)
+            HStack(alignment: .top, spacing: size * 0.6) {
+                Text(r.song.title)
+                    .font(ChartFonts.heading(size * 2.1))
+                    .foregroundStyle(style.text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if compact && r.capo > 0 { capoBadge(stacked: true).padding(.top, size * 0.35) }
+            }
+            .padding(.bottom, size * 0.2)
+            if !compact {
+                ForEach(r.song.artists, id: \.self) { Text($0) }
+                    .font(ChartFonts.lyric(size * 0.95))
+                    .foregroundStyle(style.text)
+                ForEach(r.song.subtitles, id: \.self) { Text("(\($0))") }
+                    .font(ChartFonts.lyric(size * 0.95))
+                    .foregroundStyle(style.text)
+            }
             VStack(alignment: .leading, spacing: size * 0.1) {
                 Text(keyTempoLine)
                     .font(ChartFonts.heading(size))
@@ -70,24 +78,27 @@ struct ChartHeaderView: View {
                 }
             }
             .padding(.top, size * 0.15)
-            if r.capo > 0 {
-                HStack(spacing: size * 0.5) {
-                    Text("CAPO \(r.capo)")
-                        .font(ChartFonts.heading(size * 0.95))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, size * 0.5)
-                        .padding(.vertical, size * 0.15)
-                        .background(Color.red, in: RoundedRectangle(cornerRadius: size * 0.25))
-                    if let shape = r.shapeKey {
-                        Text("play \(shape.description) shapes")
-                            .font(ChartFonts.heading(size * 0.9))
-                            .foregroundStyle(Color.red)
-                    }
-                }
-                .padding(.top, size * 0.3)
-            }
+            if !compact && r.capo > 0 { capoBadge(stacked: false).padding(.top, size * 0.3) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder private func capoBadge(stacked: Bool) -> some View {
+        let badge = Text("CAPO \(r.capo)")
+            .font(ChartFonts.heading(size * 0.95))
+            .foregroundStyle(.white)
+            .padding(.horizontal, size * 0.5)
+            .padding(.vertical, size * 0.15)
+            .background(Color.red, in: RoundedRectangle(cornerRadius: size * 0.25))
+            .fixedSize()
+        let shapes = r.shapeKey.map {
+            Text("\($0.description) shapes").font(ChartFonts.heading(size * 0.8)).foregroundStyle(Color.red).fixedSize()
+        }
+        if stacked {
+            VStack(alignment: .trailing, spacing: size * 0.2) { badge; shapes }
+        } else {
+            HStack(spacing: size * 0.5) { badge; shapes.map { $0.font(ChartFonts.heading(size * 0.9)) } }
+        }
     }
 
     private var keyTempoLine: String {

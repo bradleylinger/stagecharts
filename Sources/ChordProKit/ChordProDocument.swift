@@ -93,3 +93,50 @@ public struct ChordProDocument {
         return out.joined(separator: "\n")
     }
 }
+
+extension ChordProDocument {
+    /// Plain lines that are really chord lines (e.g. "Em7(4)* A7sus (*alt. G2 )" — footnote marks
+    /// kept a PDF converter from seeing them as chords) are rewritten as bracketed chords, so they're
+    /// styled and transposed like the rest of the chart.
+    public static func bracketingChordOnlyLines(_ text: String) -> String {
+        guard text.contains("\n") else { return text }
+        return text.components(separatedBy: "\n").map { chordOnlyLine($0) ?? $0 }.joined(separator: "\n")
+    }
+
+    /// A chord symbol built only from real chord parts, so words like "Ending" or "Coda" don't count.
+    static let chordPattern = #"^[A-G][#b♯♭]?(maj|min|dim|aug|sus|add|omit|no|m|M|Δ|ø|°|\+|-|\^|[0-9]|[#b♯♭]|\(|\))*(/[A-G][#b♯♭]?)?$"#
+
+    static func chordOnlyLine(_ line: String) -> String? {
+        let t = line.trimmingCharacters(in: .whitespaces)
+        guard !t.isEmpty, !t.contains("["), !t.hasPrefix("{"), !t.hasPrefix("#") else { return nil }
+        // Tokens, keeping "( … )" groups together.
+        var tokens: [String] = [], group: String? = nil
+        for w in t.split(separator: " ").map(String.init) {
+            if var g = group {
+                g += " " + w
+                if w.hasSuffix(")") { tokens.append(g); group = nil } else { group = g }
+            } else if w.hasPrefix("("), !w.hasSuffix(")") {
+                group = w
+            } else {
+                tokens.append(w)
+            }
+        }
+        if let g = group { tokens.append(g) }
+        var chords = 0
+        for tok in tokens {
+            if tok.hasPrefix("(") && tok.hasSuffix(")") { continue }            // note such as "(*alt. G2 )"
+            if tok == "|" || tok == "/" { continue }
+            let core = tok.hasSuffix("*") ? String(tok.dropLast()) : tok
+            guard core.range(of: Self.chordPattern, options: .regularExpression) != nil,
+                  Transposer.transposeChord(core, by: 0, preferFlats: false) != nil else { return nil }
+            chords += 1
+        }
+        // A lone word like "A" could be lyrics; need two chords, or a chord plus a note.
+        guard chords >= 2 || (chords == 1 && tokens.count > 1) else { return nil }
+        return tokens.map { tok -> String in
+            if tok == "|" || tok == "/" { return tok }
+            if tok.hasPrefix("(") { return "[(" + tok.dropFirst().dropLast().trimmingCharacters(in: .whitespaces) + ")]" }
+            return "[\(tok)]"
+        }.joined(separator: " ")
+    }
+}

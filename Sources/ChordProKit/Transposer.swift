@@ -82,9 +82,15 @@ public enum Transposer {
     /// Returns nil if the text isn't a recognizable chord (e.g. "N.C.", "x2").
     public static func transposeChord(_ chord: String, by semitones: Int, preferFlats: Bool) -> String? {
         // Bracketed chords such as "(Bb)" or "(F/A)": transpose what's inside.
-        if chord.hasPrefix("("), chord.hasSuffix(")"), chord.count > 2,
-           let inner = transposeChord(String(chord.dropFirst().dropLast()), by: semitones, preferFlats: preferFlats) {
-            return "(" + inner + ")"
+        if chord.hasPrefix("("), chord.hasSuffix(")"), chord.count > 2 {
+            let inside = String(chord.dropFirst().dropLast())
+            if let inner = transposeChord(inside, by: semitones, preferFlats: preferFlats) { return "(" + inner + ")" }
+            // Notes naming an alternative chord, e.g. "(*alt. G2)": transpose the chord words in them.
+            if inside.lowercased().contains("alt") || inside.hasPrefix("*") {
+                return "(" + inside.split(separator: " ").map { w in
+                    w.count > 1 ? (transposeChord(String(w), by: semitones, preferFlats: preferFlats) ?? String(w)) : String(w)
+                }.joined(separator: " ") + ")"
+            }
         }
         let s = Substring(chord)
         guard let (rootPC, rootLen) = Note.parse(s) else { return nil }
@@ -101,7 +107,7 @@ public enum Transposer {
         }
 
         // Sanity check the quality text so lyric-ish brackets don't get mangled.
-        let allowed = CharacterSet(charactersIn: "majminMdimaugsus+-()#b♯♭°ø/0123456789add^Δnoomit")
+        let allowed = CharacterSet(charactersIn: "majminMdimaugsus+-()#b♯♭°ø/0123456789add^Δnoomit*")   // * = footnote mark
         guard body.unicodeScalars.allSatisfy({ allowed.contains($0) }) else { return nil }
 
         return Note.name(rootPC + semitones, preferFlats: preferFlats) + body + bass
@@ -116,7 +122,7 @@ public enum Transposer {
         else { flats = false }
 
         var out: [String] = []
-        for line in text.components(separatedBy: "\n") {
+        for line in ChordProDocument.bracketingChordOnlyLines(text).components(separatedBy: "\n") {
             out.append(transposeLine(line, by: semitones, preferFlats: flats))
         }
         return out.joined(separator: "\n")

@@ -82,7 +82,8 @@ public struct ChordProSong: Equatable {
     }
 
     public init(_ text: String) {
-        let normalized = text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
+        let normalized = ChordProDocument.bracketingChordOnlyLines(
+            text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n"))
         var meta: [String: String] = [:]
         var artists: [String] = []
         var subtitles: [String] = []

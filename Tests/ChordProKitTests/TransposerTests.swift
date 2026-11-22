@@ -64,3 +64,26 @@ final class TransposerTests: XCTestCase {
         }
     }
 }
+
+final class ChordOnlyLineTests: XCTestCase {
+    func testFootnotedChordLineIsBracketed() {
+        XCTAssertEqual(ChordProDocument.chordOnlyLine("Em7(4)* A7sus (*alt. G2 )"), "[Em7(4)*] [A7sus] [(*alt. G2)]")
+    }
+    func testLyricsAreLeftAlone() {
+        XCTAssertNil(ChordProDocument.chordOnlyLine("You're the reason why"))
+        XCTAssertNil(ChordProDocument.chordOnlyLine("A"))
+        XCTAssertNil(ChordProDocument.chordOnlyLine("Am I the one"))
+    }
+    func testTransposesFootnotedLine() {
+        let out = Transposer.transpose(chordPro: "{key: D}\nEm7(4)* A7sus (*alt. G2 )\nlyric", by: -2, preferFlats: false)
+        XCTAssertTrue(out.contains("[Dm7(4)*] [G7sus] [(*alt. F2)]"), out)
+    }
+}
+
+final class ChordWordTests: XCTestCase {
+    func testWordsThatLookLikeChordsAreNotChords() {
+        XCTAssertNil(ChordProDocument.chordOnlyLine("Ending (unison band riff.)"))
+        XCTAssertNil(ChordProDocument.chordOnlyLine("Coda (all)"))
+        XCTAssertEqual(ChordProDocument.chordOnlyLine("Am7(4) C2 (1st x to V.1)"), "[Am7(4)] [C2] [(1st x to V.1)]")
+    }
+}

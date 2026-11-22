@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 import UniformTypeIdentifiers
 import ChordProKit
 
@@ -20,6 +21,9 @@ struct ContentView: View {
     @State private var importing = false
     @State private var pickingAIChart = false
     @State private var aiChartURL: URL?
+    @State private var scanningChart = false
+    @State private var pickingPhoto = false
+    @State private var photoItem: PhotosPickerItem?
     @State private var newSetName = ""
     @State private var showNewSet = false
     @State private var pendingSongForNewSet: String?
@@ -60,6 +64,26 @@ struct ContentView: View {
             .fileImporter(isPresented: $pickingAIChart, allowedContentTypes: [.pdf, .image]) { result in
                 if case .success(let url) = result { aiChartURL = url }
             }
+            #if os(iOS)
+            .fullScreenCover(isPresented: $scanningChart) {
+                ChartScanner { url in
+                    scanningChart = false
+                    if let url { DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { aiChartURL = url } }
+                }
+                .ignoresSafeArea()
+            }
+            .photosPicker(isPresented: $pickingPhoto, selection: $photoItem, matching: .images)
+            .onChange(of: photoItem) { _, item in
+                guard let item else { return }
+                photoItem = nil
+                Task {
+                    guard let data = try? await item.loadTransferable(type: Data.self), let img = UIImage(data: data),
+                          let url = ChartCapture.pdf(from: [img], name: "Chart photo") else { return }
+                    try? await Task.sleep(for: .milliseconds(600))
+                    await MainActor.run { aiChartURL = url }
+                }
+            }
+            #endif
             .sheet(item: $aiChartURL) { url in
                 AIConvertSheet(source: .file(url)) { id in activeSetRaw = ""; selection = id }
             }
@@ -70,7 +94,19 @@ struct ContentView: View {
                     Menu {
                         Button("Import songs…", systemImage: "square.and.arrow.down") { importing = true }
                         Button("Get songs from SongSelect…", systemImage: "globe") { importer.browserURL = SongSelect.home }
+                        #if os(iOS)
+                        Menu {
+                            if ChartScanner.isAvailable {
+                                Button("Scan with camera…", systemImage: "doc.viewfinder") { scanningChart = true }
+                            }
+                            Button("Choose a photo…", systemImage: "photo") { pickingPhoto = true }
+                            Button("Choose a file…", systemImage: "folder") { pickingAIChart = true }
+                        } label: {
+                            Label("Convert a chart with AI", systemImage: "sparkles")
+                        }
+                        #else
                         Button("Convert a chart with AI…", systemImage: "sparkles") { pickingAIChart = true }
+                        #endif
                         Button("Upgrade from SongSelect (\(importer.upgradeCandidates.count))…", systemImage: "arrow.up.circle") {
                             showUpgradeQueue = true
                         }

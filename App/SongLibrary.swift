@@ -338,7 +338,10 @@ final class SongLibrary: ObservableObject {
             if let data = Self.coordinatedData(original) ?? (try? Data(contentsOf: original)),
                Self.coordinatedWrite(data, to: pdfFolder.appendingPathComponent(name)) {
                 raw = ChordProDocument.setting("x_original", to: name, in: raw)
-                raw = ChordProDocument.setting("x_original_doc", to: ext == "pdf" ? "PDF" : "Image", in: raw)
+                let picked = original.lastPathComponent
+                let kind = picked.hasPrefix("Chart photo") ? "Image" : picked.hasPrefix("Scanned chart") ? "scanned PDF"
+                    : ext == "pdf" ? "PDF" : "Image"
+                raw = ChordProDocument.setting("x_original_doc", to: kind, in: raw)
             }
         }
         let incoming = ChordProSong(raw)

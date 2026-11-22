@@ -54,6 +54,8 @@
 		<string>_stagecharts._tcp</string>
 		<string>_stagecharts._udp</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>StageCharts uses the camera to scan paper chord charts so they can be converted into transposable charts.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>StageCharts uses the local network to receive MIDI from your computer and to share set lists and song changes with your band's iPads.</string>
 	<key>SUEnableAutomaticChecks</key>

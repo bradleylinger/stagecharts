@@ -20,6 +20,7 @@ struct SongView: View {
     @State private var editingNote: EditingNote?
     @State private var swipeOffset: CGFloat = 0
     @State private var chromeHidden = false
+    @State private var showOriginal = false
     @State private var showAIConvert = false
     @State private var showTransition = false     // iOS: tap the chart to hide / show the top bar
     @State private var editingInfo = false
@@ -137,6 +138,9 @@ struct SongView: View {
         .sheet(item: $editingNote) { e in
             NoteEditor(note: e.note, sectionName: nil, onSave: { saveNote($0) },
                        onDelete: e.isNew ? nil : { deleteNote(e.note) })
+        }
+        .sheet(isPresented: $showOriginal) {
+            if let u = file.originalURL { OriginalDocumentSheet(url: u, title: file.song.title) }
         }
         .sheet(isPresented: $editingInfo) {
             TempoEditor(tempo: library.tempo(for: file) ?? 0, chartTempo: file.song.tempo.flatMap { Int($0) },
@@ -357,9 +361,19 @@ struct SongView: View {
     private func footer(_ song: ChordProSong) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             ChartFooterView(song: song, size: size, style: style)
-            Text(file.song.source.isChordPro ? "Chart: ChordPro" : "Chart: converted from SongSelect PDF")
-                .font(.system(size: max(9, size * 0.45)))
-                .foregroundStyle(style.secondary)
+            HStack(spacing: 10) {
+                Text(file.sourceDescription)
+                    .font(.system(size: max(9, size * 0.45)))
+                    .foregroundStyle(style.secondary)
+                if file.originalURL != nil {
+                    Button { showOriginal = true } label: {
+                        Label("Show original", systemImage: "doc.text.magnifyingglass")
+                            .font(.system(size: max(11, size * 0.55), weight: .semibold))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
         }
         .padding(.top, size)
     }
@@ -450,6 +464,10 @@ struct SongView: View {
                 }
                 Picker("Style", selection: $styleRaw) {
                     ForEach(ChartStyle.allCases) { Text($0.title).tag($0.rawValue) }
+                }
+                if file.originalURL != nil {
+                    Divider()
+                    Button("Show original", systemImage: "doc.text.magnifyingglass") { showOriginal = true }
                 }
             } label: {
                 Label("Display", systemImage: "textformat.size")

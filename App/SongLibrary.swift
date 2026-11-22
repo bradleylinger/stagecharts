@@ -322,7 +322,25 @@ final class SongLibrary: ObservableObject {
     /// Saves a chart converted by AI: replaces `existing` (or a lower-ranked song with the same CCLI #)
     /// in place, keeping set lists, keys, capos, notes and MIDI; otherwise adds it. Returns the song id.
     @discardableResult
-    func saveAIChart(_ raw: String, replacing existing: SongFile?) throws -> String {
+    /// `original`: the document the chart was made from when it isn't already in the library; it's copied
+    /// next to the PDF-only files so the original can still be viewed.
+    func saveAIChart(_ raw: String, replacing existing: SongFile?, original: URL? = nil) throws -> String {
+        var raw = raw
+        if let existing, let file = existing.song.pdfFile ?? existing.song.originalFile {
+            raw = ChordProDocument.setting("x_original", to: file, in: raw)
+            raw = ChordProDocument.setting("x_original_doc", to: existing.song.documentKind ?? existing.song.originalKind ?? "PDF", in: raw)
+        } else if let original {
+            try? FileManager.default.createDirectory(at: pdfFolder, withIntermediateDirectories: true)
+            let title = ChordProSong(raw).title
+            let ext = original.pathExtension.lowercased()
+            let name = uniqueFileName(title.isEmpty ? original.deletingPathExtension().lastPathComponent : title,
+                                      ext: ext.isEmpty ? "pdf" : ext, in: pdfFolder)
+            if let data = Self.coordinatedData(original) ?? (try? Data(contentsOf: original)),
+               Self.coordinatedWrite(data, to: pdfFolder.appendingPathComponent(name)) {
+                raw = ChordProDocument.setting("x_original", to: name, in: raw)
+                raw = ChordProDocument.setting("x_original_doc", to: ext == "pdf" ? "PDF" : "Image", in: raw)
+            }
+        }
         let incoming = ChordProSong(raw)
         let target = existing ?? incoming.ccli.flatMap { c in
             songs.first { $0.song.ccli == c && $0.song.source.rank < incoming.source.rank }

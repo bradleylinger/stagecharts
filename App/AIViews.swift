@@ -99,9 +99,14 @@ struct AIConvertSheet: View {
     private func save() {
         guard let result else { return }
         do {
-            var existing: SongFile? = nil
-            if case .song(let f) = source { existing = f }
-            let id = try library.saveAIChart(result, replacing: existing)
+            var existing: SongFile? = nil, original: URL? = nil
+            switch source {
+            case .song(let f): existing = f
+            case .file(let u): original = u
+            }
+            let scoped = original?.startAccessingSecurityScopedResource() ?? false
+            defer { if scoped { original?.stopAccessingSecurityScopedResource() } }
+            let id = try library.saveAIChart(result, replacing: existing, original: original)
             onSaved(id)
             dismiss()
         } catch {

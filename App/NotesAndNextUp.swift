@@ -197,6 +197,8 @@ struct FormatTag: View {
             return ("ChordPro", .green, "ChordPro chart")
         case .onSongSongSelect:
             return ("SongSelect", .blue, "From OnSong's SongSelect integration, converted to a transposable chart")
+        case .convertedPDF where song.meta["x_source"] == "ai":
+            return ("AI", .purple, "Converted with AI – check it against the original")
         case .convertedPDF:
             return ("PDF", .secondary, "Converted from a SongSelect PDF – import its ChordPro file to upgrade")
         case .pdfDocument:

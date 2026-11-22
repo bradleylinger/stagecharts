@@ -10,6 +10,69 @@ extension SongFile {
     var pdfURL: URL? {
         song.pdfFile.map { url.deletingLastPathComponent().appendingPathComponent("PDF", isDirectory: true).appendingPathComponent($0) }
     }
+    /// The document a converted chart was made from, if it was kept.
+    var originalURL: URL? {
+        song.originalFile.map { url.deletingLastPathComponent().appendingPathComponent("PDF", isDirectory: true).appendingPathComponent($0) }
+    }
+
+    /// Where the chart came from, in words (shown under the chart).
+    var sourceDescription: String {
+        let s = song
+        switch s.meta["x_source"] {
+        case "ai":
+            let kind = s.originalKind.map { $0 == "Image" ? "a photo" : "a \($0) document" } ?? "a document"
+            return "Chart: converted with AI from \(kind)"
+        case "songselect-pdf": return "Chart: converted from a SongSelect PDF"
+        case "chord-chart": return "Chart: converted from a PDF chord chart"
+        case "onsong-songselect": return "Chart: from OnSong's SongSelect import"
+        default:
+            switch s.source {
+            case .songSelectChordPro: return "Chart: SongSelect ChordPro"
+            case .otherChordPro: return "Chart: ChordPro"
+            case .convertedPDF, .onSongSongSelect: return "Chart: converted from a PDF"
+            case .pdfDocument: return "Chart: original \(s.documentKind ?? "PDF")"
+            }
+        }
+    }
+}
+
+/// Shows a chart's original document (PDF or photo) as-is.
+struct OriginalDocumentSheet: View {
+    let url: URL
+    let title: String
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        SheetNavigation {
+            Group {
+                if url.pathExtension.lowercased() == "pdf" {
+                    PDFKitView(url: url, command: nil)
+                } else if let data = SongLibrary.coordinatedData(url), let image = platformImage(data) {
+                    ScrollView { image.resizable().scaledToFit().padding() }
+                } else {
+                    Text("The original file isn't available on this device.").foregroundColor(.secondary).padding()
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.white)
+            .navigationTitle("Original – \(title)")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+        }
+        #if os(macOS)
+        .frame(minWidth: 700, minHeight: 800)
+        #endif
+    }
+
+    private func platformImage(_ data: Data) -> Image? {
+        #if os(macOS)
+        NSImage(data: data).map { Image(nsImage: $0) }
+        #else
+        UIImage(data: data).map { Image(uiImage: $0) }
+        #endif
+    }
 }
 
 /// PDFKit view that also follows page / scroll / section commands (MIDI, pedals, band leader).

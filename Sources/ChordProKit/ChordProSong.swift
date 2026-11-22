@@ -60,6 +60,9 @@ public struct ChordProSong: Equatable {
     /// For PDF-only songs: the original document's file name (shown as-is) and what it was.
     public var pdfFile: String? { meta["x_pdf"] }
     public var documentKind: String? { meta["x_doc"] }      // "PDF", "Word", "Pages", "Image", "PraiseCharts"
+    /// For charts converted from a document (e.g. with AI): the original, kept in the same folder as PDF-only files.
+    public var originalFile: String? { meta["x_original"] }
+    public var originalKind: String? { meta["x_original_doc"] }
 
     public var source: ChartSource {
         if meta["x_pdf"] != nil { return .pdfDocument }

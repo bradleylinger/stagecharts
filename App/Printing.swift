@@ -2,6 +2,7 @@ import SwiftUI
 import CoreTransferable
 import UniformTypeIdentifiers
 import ChordProKit
+import PDFKit
 #if os(iOS)
 import UIKit
 #else
@@ -20,11 +21,13 @@ struct RenderedSong {
     /// The BPM we play it at, and the chart's own BPM (for reference when they differ).
     let tempo: Int?
     let chartTempo: Int?
+    let pdfURL: URL?        // PDF-only songs print their original pages
 
     init(file: SongFile, semitones: Int, capo: Int, tempo: Int? = nil) {
         self.semitones = semitones
         self.capo = capo
         chartTempo = file.song.tempo.flatMap { Int($0) }
+        pdfURL = file.pdfURL
         self.tempo = tempo ?? chartTempo
         originalKey = file.song.key
         soundingKey = originalKey?.transposed(by: semitones)
@@ -133,6 +136,10 @@ enum ChartPDF {
             draw(SetCoverPage(title: setTitle, songs: songs, size: textSize), in: ctx)
         }
         for r in songs {
+            if let url = r.pdfURL, let doc = PDFDocument(url: url) {
+                for i in 0..<doc.pageCount { if let p = doc.page(at: i) { drawOriginal(p, in: ctx) } }
+                continue
+            }
             for p in pages(for: r) { draw(p, in: ctx) }
         }
         ctx.closePDF()
@@ -143,6 +150,19 @@ enum ChartPDF {
         ctx.beginPDFPage(nil)
         let renderer = ImageRenderer(content: view.frame(width: page.width, height: page.height).background(Color.white))
         renderer.render { _, render in render(ctx) }
+        ctx.endPDFPage()
+    }
+
+    /// Draws an original PDF page scaled to fit US Letter.
+    private static func drawOriginal(_ page: PDFPage, in ctx: CGContext) {
+        let b = page.bounds(for: .mediaBox)
+        let scale = min(Self.page.width / b.width, Self.page.height / b.height)
+        ctx.beginPDFPage(nil)
+        ctx.saveGState()
+        ctx.translateBy(x: (Self.page.width - b.width * scale) / 2, y: (Self.page.height - b.height * scale) / 2)
+        ctx.scaleBy(x: scale, y: scale)
+        page.draw(with: .mediaBox, to: ctx)
+        ctx.restoreGState()
         ctx.endPDFPage()
     }
 

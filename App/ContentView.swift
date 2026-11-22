@@ -14,7 +14,7 @@ struct ContentView: View {
     @State private var search = ""
     @State private var formatFilter = FormatFilter.all
 
-    enum FormatFilter: String, CaseIterable { case all = "All", pdf = "From PDF", chordPro = "ChordPro" }
+    enum FormatFilter: String, CaseIterable { case all = "All", chordPro = "ChordPro", converted = "Converted", documents = "PDF only" }
     @State private var importing = false
     @State private var newSetName = ""
     @State private var showNewSet = false
@@ -29,8 +29,9 @@ struct ContentView: View {
         let byFormat = library.songs.filter {
             switch formatFilter {
             case .all: return true
-            case .pdf: return !$0.song.source.isChordPro
             case .chordPro: return $0.song.source.isChordPro
+            case .converted: return $0.song.source == .convertedPDF || $0.song.source == .onSongSongSelect
+            case .documents: return $0.song.source == .pdfDocument
             }
         }
         guard !search.isEmpty else { return byFormat }
@@ -160,15 +161,15 @@ struct ContentView: View {
                 .pickerStyle(.segmented)
                 .labelsHidden()
             } footer: {
-                let pdfCount = library.songs.filter { !$0.song.source.isChordPro }.count
-                Text(pdfCount == 0 ? "All songs are ChordPro." :
-                     "\(pdfCount) of \(library.songs.count) songs came from PDFs. Import their SongSelect ChordPro files to upgrade them in place.")
+                let converted = library.songs.filter { !$0.song.source.isChordPro && $0.song.source.isTransposable }.count
+                let docs = library.songs.filter { $0.song.source == .pdfDocument }.count
+                Text("\(library.songs.count) songs: \(converted) converted from PDFs, \(docs) shown as the original document (can't transpose). Importing SongSelect ChordPro files upgrades them in place.")
             }
             ForEach(filtered) { file in
                 HStack(alignment: .firstTextBaseline) {
                     songRow(title: file.song.title, key: keyText(file, item: nil), subtitle: file.song.artists.first)
                     Spacer(minLength: 4)
-                    FormatTag(source: file.song.source)
+                    FormatTag(song: file.song)
                 }
                     .tag(file.id)
                     .contextMenu { addToSetMenu(file.id) }

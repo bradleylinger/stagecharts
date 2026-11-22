@@ -172,19 +172,32 @@ struct NextUpBar: View {
 
 // MARK: - Format tag
 
-/// Small tag showing whether a chart is real ChordPro or was converted from a PDF.
+/// Small tag showing what kind of chart a song is.
 struct FormatTag: View {
-    let source: ChartSource
+    let song: ChordProSong
+
+    private var label: (text: String, color: Color, help: String) {
+        switch song.source {
+        case .songSelectChordPro, .otherChordPro:
+            return ("ChordPro", .green, "ChordPro chart")
+        case .onSongSongSelect:
+            return ("SongSelect", .blue, "From OnSong's SongSelect integration, converted to a transposable chart")
+        case .convertedPDF:
+            return ("PDF", .secondary, "Converted from a SongSelect PDF – import its ChordPro file to upgrade")
+        case .pdfDocument:
+            return ((song.documentKind ?? "PDF") + " only", .orange, "Original document shown as-is – the key can't be changed")
+        }
+    }
 
     var body: some View {
-        Text(source.isChordPro ? "ChordPro" : "PDF")
+        let l = label
+        Text(l.text)
             .font(.system(size: 9, weight: .bold))
-            .foregroundColor(source.isChordPro ? .white : .secondary)
+            .foregroundColor(l.color == .secondary ? .secondary : .white)
             .padding(.horizontal, 5)
             .padding(.vertical, 2)
-            .background(source.isChordPro ? Color.green : Color.secondary.opacity(0.18),
-                        in: RoundedRectangle(cornerRadius: 3))
-            .help(source.isChordPro ? "ChordPro chart" : "Converted from a SongSelect PDF – import its ChordPro file to upgrade")
+            .background(l.color == .secondary ? Color.secondary.opacity(0.18) : l.color, in: RoundedRectangle(cornerRadius: 3))
+            .help(l.help)
     }
 }
 

@@ -26,7 +26,7 @@ public enum PDFChordSheetImporter {
         return try chordPro(from: doc)
     }
 
-    public static func chordPro(from doc: PDFDocument) throws -> String {
+    public static func chordPro(from doc: PDFDocument, relaxed: Bool = false) throws -> String {
         var pages: [[PDFGlyph]] = []
         var width: CGFloat = 612
         for i in 0..<doc.pageCount {
@@ -35,7 +35,7 @@ public enum PDFChordSheetImporter {
             pages.append(glyphs(on: page))
         }
         guard pages.contains(where: { !$0.isEmpty }) else { throw ImportError.noText }
-        return resolveLigatures(ChordSheetLayout.chordPro(pages: pages, pageWidth: width))
+        return resolveLigatures(ChordSheetLayout.chordPro(pages: pages, pageWidth: width, relaxed: relaxed))
     }
 
     static let ligaturePlaceholder: Character = "\u{FFFD}"

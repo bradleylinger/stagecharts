@@ -30,7 +30,11 @@ public enum ChordSheetLayout {
     struct Token { var text: String; var minX: CGFloat }
 
     /// Converts all pages. `pages` = glyphs per page, `pageWidth` for column detection.
-    public static func chordPro(pages: [[PDFGlyph]], pageWidth: CGFloat = 612) -> String {
+    /// `relaxed`: also accept non-bold chord rows (charts from Word, other publishers). Off for
+    /// SongSelect sheets, where bold reliably marks chords.
+    public static func chordPro(pages: [[PDFGlyph]], pageWidth: CGFloat = 612, relaxed: Bool = false) -> String {
+        Self.relaxed = relaxed
+        defer { Self.relaxed = false }
         var rows: [Row] = []
         for (index, glyphs) in pages.enumerated() {
             rows += rowsInReadingOrder(glyphs, pageWidth: pageWidth, firstPage: index == 0)
@@ -193,8 +197,20 @@ public enum ChordSheetLayout {
         ChordProSong.looksLikeSectionLabel(row.text)
     }
 
+    nonisolated(unsafe) static var relaxed = false
+
     static func isChordRow(_ row: Row) -> Bool {
-        guard row.boldFraction > 0.7, !isLabel(row), !isKeyTempoRow(row) else { return false }
+        guard !isLabel(row), !isKeyTempoRow(row) else { return false }
+        if row.boldFraction <= 0.7 {
+            // Not bold: only in relaxed mode, and only rows made purely of chord symbols
+            // (at least two chords, or one multi-letter chord like "G/B", so a lyric "A" isn't a chord).
+            guard relaxed else { return false }
+            let toks = tokens(row).map(\.text)
+            let chords = toks.filter(isChord)
+            guard !chords.isEmpty, chords.count + toks.filter(barSymbols.contains).count == toks.count,
+                  chords.count >= 2 || (chords.first?.count ?? 0) >= 2 else { return false }
+            return true
+        }
         // Merged tokens: "(To" "Verse" "1)" → "(To Verse 1)". Allowed besides chords: bar symbols,
         // bracketed annotations like "(1.)", "(To Chorus)", "(Last x)", and repeat marks like "x2".
         let toks = chordTokens(row).map(\.text)
@@ -263,7 +279,10 @@ public enum ChordSheetLayout {
 
         if let ccli { out.append(""); out.insert("{ccli: \(ccli)}", at: min(out.count, headerEnd(out))) }
         if !copyright.isEmpty {
-            out.insert("{copyright: \(copyright.joined(separator: " "))}", at: min(out.count, headerEnd(out)))
+            // Drop chord-diagram residue some publishers print in the footer (x o • grids).
+            var text = copyright.joined(separator: " ")
+            if let r = text.range(of: #"\s(\S+\s){0,12}?([xo•]\s){3,}"#, options: .regularExpression) { text = String(text[..<r.lowerBound]) }
+            out.insert("{copyright: \(text)}", at: min(out.count, headerEnd(out)))
         }
         while out.last == "" { out.removeLast() }
         return out.joined(separator: "\n") + "\n"
@@ -281,10 +300,14 @@ public enum ChordSheetLayout {
         for (n, row) in rows.enumerated() {
             let t = row.text.trimmingCharacters(in: .whitespaces)
             if n == 0 { out.append("{title: \(t)}"); continue }
-            if t.contains("Key - ") || t.contains("Tempo - ") || t.contains("Time - ") {
-                if let k = capture(#"Key - ([A-G][#b♯♭]?m?)"#, t) { out.append("{key: \(k)}") }
-                if let v = capture(#"Tempo - (\d+)"#, t) { out.append("{tempo: \(v)}") }
-                if let v = capture(#"Time - (\d+/\d+)"#, t) { out.append("{time: \(v)}") }
+            // "Key - G | Tempo - 72 | Time - 4/4" (SongSelect) or "Key: G · Tempo: 56 · Time: 4/4" (others)
+            if t.range(of: #"(Key|Tempo|Time)\s*[-:]\s*\S"#, options: .regularExpression) != nil {
+                if let k = capture(#"Key\s*[-:]\s*([A-G][#b♯♭]?m?)\b"#, t) { out.append("{key: \(k)}") }
+                if let v = capture(#"Tempo\s*[-:]\s*(\d+)"#, t) { out.append("{tempo: \(v)}") }
+                if let v = capture(#"Time\s*[-:]\s*(\d+/\d+)"#, t) { out.append("{time: \(v)}") }
+                let rest = t.replacingOccurrences(of: #"\s*(Key|Tempo|Time)\s*[-:]\s*[^·|]*[·|]?"#, with: " ", options: .regularExpression)
+                    .trimmingCharacters(in: CharacterSet.whitespaces.union(CharacterSet(charactersIn: "·|")))
+                if !rest.isEmpty { out.append("{artist: \(rest)}") }
                 continue
             }
             if t.hasPrefix("(") {

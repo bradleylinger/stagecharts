@@ -50,7 +50,7 @@ struct ViewerRootView: View {
                                     Text("\(index + 1).").foregroundColor(.secondary).font(.headline.monospacedDigit())
                                 }
                                 VStack(alignment: .leading, spacing: 2) {
-                                    HStack { Text(row.file.song.title).font(.headline); FormatTag(source: row.file.song.source) }
+                                    HStack { Text(row.file.song.title).font(.headline); FormatTag(song: row.file.song) }
                                     Text(keyText(row.file, row.item) ?? "").font(.caption).foregroundColor(.orange)
                                 }
                             }
@@ -160,8 +160,25 @@ struct ViewerSongView: View {
     }
 
     var body: some View {
+        if let pdf = file.pdfURL {
+            VStack(spacing: 0) {
+                PDFSongBar(file: file, key: rendered.soundingKey, tempo: library.tempo(for: file), capo: capo,
+                           notes: settings.notes) { viewingNote = $0 }
+                Divider()
+                PDFKitView(url: pdf, command: midi.command)
+            }
+            .offset(x: swipeOffset)
+            .simultaneousGesture(swipe)
+            .alert(item: $viewingNote) { n in Alert(title: Text("Note"), message: Text(n.text), dismissButton: .default(Text("OK"))) }
+            .navigationTitle(file.song.title)
+        } else {
+            chartBody
+        }
+    }
+
+    private var chartBody: some View {
         let r = rendered
-        GeometryReader { outer in
+        return GeometryReader { outer in
             let padding = max(24, outer.size.width * 0.05)
             let twoCols = columns.count(forWidth: outer.size.width - padding * 2, textSize: size) == 2
             ScrollViewReader { proxy in

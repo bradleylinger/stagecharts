@@ -116,6 +116,9 @@ final class SongLibrary: ObservableObject {
         if !fm.fileExists(atPath: target.path) {
             try fm.createDirectory(at: target, withIntermediateDirectories: true)
             for f in songs { try? fm.copyItem(at: f.url, to: target.appendingPathComponent(f.id)) }
+            if fm.fileExists(atPath: pdfFolder.path) {
+                try? fm.copyItem(at: pdfFolder, to: target.appendingPathComponent("PDF", isDirectory: true))
+            }
             for name in ["song-settings.json", "setlists.json"] {
                 let src = base.appendingPathComponent(name)
                 if fm.fileExists(atPath: src.path) { try? fm.copyItem(at: src, to: url.appendingPathComponent(name)) }
@@ -218,18 +221,16 @@ final class SongLibrary: ObservableObject {
 
                 let incoming = ChordProSong(raw)
                 if let ccli = incoming.ccli, let existing = songs.first(where: { $0.song.ccli == ccli }) {
-                    switch (existing.song.source.isChordPro, incoming.source.isChordPro) {
-                    case (false, true):                     // PDF version → ChordPro: upgrade in place
+                    let (old, new) = (existing.song.source.rank, incoming.source.rank)
+                    if new > old {                          // better version (e.g. ChordPro over PDF): upgrade in place
                         try upgrade(existing, to: raw)
                         upgraded.append(incoming.title)
-                        continue
-                    case (true, false):                     // never downgrade ChordPro → PDF
+                    } else if new < old {                   // never downgrade
                         keptChordPro.append(incoming.title)
-                        continue
-                    default:                                // same kind: keep what's in the library
-                        if existing.raw != raw { alreadyHave.append(incoming.title) }
-                        continue
+                    } else if existing.raw != raw {         // same kind: keep what's in the library
+                        alreadyHave.append(incoming.title)
                     }
+                    continue
                 }
                 try write(raw, to: folder.appendingPathComponent(name))
             } catch {
@@ -238,8 +239,8 @@ final class SongLibrary: ObservableObject {
         }
         reload()
         var report: [String] = []
-        if !upgraded.isEmpty { report.append("Upgraded to ChordPro (set lists, notes, MIDI and keys kept): " + upgraded.joined(separator: ", ")) }
-        if !keptChordPro.isEmpty { report.append("Kept your ChordPro version of: " + keptChordPro.joined(separator: ", ")) }
+        if !upgraded.isEmpty { report.append("Upgraded to a better version (set lists, notes, MIDI and keys kept): " + upgraded.joined(separator: ", ")) }
+        if !keptChordPro.isEmpty { report.append("Kept your better version of: " + keptChordPro.joined(separator: ", ")) }
         if !alreadyHave.isEmpty { report.append("Already in your library (kept yours): " + alreadyHave.joined(separator: ", ")) }
         if !failures.isEmpty { report.append("Couldn't import: " + failures.joined(separator: ", ")) }
         lastError = report.isEmpty ? nil : report.joined(separator: "\n\n")
@@ -285,6 +286,47 @@ final class SongLibrary: ObservableObject {
             throw NSError(domain: "StageCharts", code: 2, userInfo: [NSLocalizedDescriptionKey:
                 "couldn't save to \(url.deletingLastPathComponent().path) – is the library folder available?"])
         }
+    }
+
+    /// Folder holding original documents of PDF-only songs.
+    var pdfFolder: URL { folder.appendingPathComponent("PDF", isDirectory: true) }
+
+    /// A file name in Songs/ (or Songs/PDF/) that isn't taken yet: "Title.ext", "Title (2).ext"…
+    func uniqueFileName(_ title: String, ext: String, in dir: URL? = nil) -> String {
+        let safe = title.components(separatedBy: CharacterSet(charactersIn: "/\\:?%*|\"<>")).joined(separator: "-")
+            .trimmingCharacters(in: .whitespaces)
+        let dir = dir ?? folder
+        var name = "\(safe).\(ext)", n = 2
+        while FileManager.default.fileExists(atPath: dir.appendingPathComponent(name).path) {
+            name = "\(safe) (\(n)).\(ext)"; n += 1
+        }
+        return name
+    }
+
+    /// Adds a song (ChordPro text, or a PDF-only stub with its document). Call reload() afterwards.
+    func addSong(fileName: String, raw: String, pdf: (name: String, data: Data)? = nil) throws {
+        if let pdf {
+            try FileManager.default.createDirectory(at: pdfFolder, withIntermediateDirectories: true)
+            guard Self.coordinatedWrite(pdf.data, to: pdfFolder.appendingPathComponent(pdf.name)) else {
+                throw CocoaError(.fileWriteUnknown)
+            }
+        }
+        try write(raw, to: folder.appendingPathComponent(fileName))
+    }
+
+    /// Applies many settings changes with a single save.
+    func updateMany(_ changes: [(String, (inout SongSettings) -> Void)]) {
+        for (id, change) in changes { var s = settings(for: id); change(&s); settings[id] = s }
+        saveSettings()
+    }
+
+    /// Adds or replaces many set lists with a single save.
+    func replaceOrAddSets(_ sets: [SetList]) {
+        for set in sets {
+            if let i = setLists.firstIndex(where: { $0.id == set.id }) { setLists[i] = set } else { setLists.append(set) }
+        }
+        setLists.sort { $0.date > $1.date }
+        saveSetLists()
     }
 
     /// Keeps a copy of imported PDFs next to the library (fallback / reference).

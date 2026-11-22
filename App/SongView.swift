@@ -65,8 +65,44 @@ struct SongView: View {
     private var size: CGFloat { 22 * settings.fontScale }
 
     var body: some View {
+        if let pdf = file.pdfURL { pdfBody(pdf) } else { textBody }
+    }
+
+    /// PDF-only songs: the original document, with a compact title bar.
+    private func pdfBody(_ url: URL) -> some View {
+        VStack(spacing: 0) {
+            PDFSongBar(file: file, key: currentKey, tempo: library.tempo(for: file), capo: capo,
+                       notes: settings.notes) { editingNote = EditingNote(note: $0, isNew: false) }
+            Divider()
+            PDFKitView(url: url, command: midi.command)
+        }
+        .offset(x: swipeOffset)
+        .simultaneousGesture(songSwipe)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if let next = nextUp {
+                NextUpBar(position: next.position, total: next.total, next: next.song, size: size, style: style) {
+                    midi.sendLocal(.nextSong)
+                }
+            }
+        }
+        .sheet(item: $editingNote) { e in
+            NoteEditor(note: e.note, sectionName: nil, onSave: { saveNote($0) },
+                       onDelete: e.isNew ? nil : { deleteNote(e.note) })
+        }
+        .sheet(isPresented: $editingInfo) {
+            TempoEditor(tempo: library.tempo(for: file) ?? 0, chartTempo: file.song.tempo.flatMap { Int($0) },
+                        time: file.song.time ?? "4/4") { bpm, time in
+                let chart = file.song.tempo.flatMap { Int($0) }
+                library.setTempoAndTime(file.id, ourTempo: (bpm == 0 || bpm == chart) ? nil : bpm, time: time)
+            }
+        }
+        .toolbar { toolbar(sectionCount: 0) }
+        .navigationTitle(file.song.title)
+    }
+
+    private var textBody: some View {
         let song = displayed
-        GeometryReader { geo in
+        return GeometryReader { geo in
             let horizontalPadding = max(24, geo.size.width * 0.05)
             let usable = geo.size.width - horizontalPadding * 2
             let columnCount = columns.count(forWidth: usable, textSize: size)
@@ -304,13 +340,15 @@ struct SongView: View {
             Button { perform(.pageUp, sectionCount: sectionCount) } label: { EmptyView() }
                 .keyboardShortcut(.pageUp, modifiers: []).frame(width: 0).opacity(0)
 
-            Button { shift(-1) } label: { Text("♭").font(.title2.bold()) }
-                .keyboardShortcut("[", modifiers: [])
-                .help("Down a half step  [")
-            keyMenu
-            Button { shift(1) } label: { Text("♯").font(.title2.bold()) }
-                .keyboardShortcut("]", modifiers: [])
-                .help("Up a half step  ]")
+            if file.song.source.isTransposable {
+                Button { shift(-1) } label: { Text("♭").font(.title2.bold()) }
+                    .keyboardShortcut("[", modifiers: [])
+                    .help("Down a half step  [")
+                keyMenu
+                Button { shift(1) } label: { Text("♯").font(.title2.bold()) }
+                    .keyboardShortcut("]", modifiers: [])
+                    .help("Up a half step  ]")
+            }
 
             Menu {
                 Picker("Capo", selection: Binding(get: { capo }, set: { setCapo($0) })) {

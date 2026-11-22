@@ -31,6 +31,15 @@ final class SongParserTests: XCTestCase {
         XCTAssertEqual(song.sections[5].lines.count, 4)
     }
 
+    func testChartSources() {
+        XCTAssertEqual(ChordProSong("{title: A}\n{x_pdf: A.pdf}\n{x_doc: Word}").source, .pdfDocument)
+        XCTAssertEqual(ChordProSong("{title: A}\n{x_pdf: A.pdf}").documentKind, nil)
+        XCTAssertEqual(ChordProSong("{title: A}\n{x_source: onsong-songselect}\n[G]a").source, .onSongSongSelect)
+        XCTAssertFalse(ChartSource.pdfDocument.isTransposable)
+        XCTAssertTrue(ChartSource.convertedPDF.rank > ChartSource.pdfDocument.rank)
+        XCTAssertTrue(ChartSource.songSelectChordPro.rank > ChartSource.onSongSongSelect.rank)
+    }
+
     func testEditTempoAndTime() {
         let src = "{title: X}\n{key: G}\n{tempo: 72}\n\n{comment: Verse 1}\n[G]one"
         var t = ChordProDocument.setting("tempo", to: "76", in: src)

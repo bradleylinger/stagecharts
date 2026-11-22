@@ -22,11 +22,26 @@ public struct SongSection: Equatable, Hashable, Identifiable {
     public var lines: [SongLine]
 }
 
-/// Where a chart came from: SongSelect's own ChordPro download (best), a converted PDF, or other ChordPro.
+/// Where a chart came from, best first.
 public enum ChartSource: String {
-    case songSelectChordPro, convertedPDF, otherChordPro
+    case songSelectChordPro     // SongSelect's own ChordPro download
+    case otherChordPro          // ChordPro / OnSong text from elsewhere
+    case convertedPDF           // converted from a SongSelect PDF chord sheet
+    case onSongSongSelect       // converted from a PDF OnSong got through its SongSelect integration
+    case pdfDocument            // the original document is shown as-is (can't transpose)
 
-    public var isChordPro: Bool { self != .convertedPDF }
+    /// True ChordPro text (not converted from a PDF).
+    public var isChordPro: Bool { self == .songSelectChordPro || self == .otherChordPro }
+    /// Chords are text, so the key can change.
+    public var isTransposable: Bool { self != .pdfDocument }
+    /// Higher = better; importing a better version of the same song (CCLI #) replaces a worse one.
+    public var rank: Int {
+        switch self {
+        case .songSelectChordPro, .otherChordPro: return 3
+        case .convertedPDF, .onSongSongSelect: return 2
+        case .pdfDocument: return 1
+        }
+    }
 }
 
 /// Parsed ChordPro song, ready for display.
@@ -42,8 +57,14 @@ public struct ChordProSong: Equatable {
     public var sections: [SongSection]
     public var meta: [String: String]
 
+    /// For PDF-only songs: the original document's file name (shown as-is) and what it was.
+    public var pdfFile: String? { meta["x_pdf"] }
+    public var documentKind: String? { meta["x_doc"] }      // "PDF", "Word", "Pages", "Image", "PraiseCharts"
+
     public var source: ChartSource {
-        if meta["x_source"] == "songselect-pdf" { return .convertedPDF }
+        if meta["x_pdf"] != nil { return .pdfDocument }
+        if meta["x_source"] == "onsong-songselect" { return .onSongSongSelect }
+        if meta["x_source"] == "songselect-pdf" || meta["x_source"] == "chord-chart" { return .convertedPDF }
         if meta["ccli_license"] != nil || (meta["footer"] ?? "").contains("SongSelect") { return .songSelectChordPro }
         // Converted before the marker existed: SongSelect metadata but no ChordPro license/footer lines.
         if ccli != nil && copyright != nil { return .convertedPDF }

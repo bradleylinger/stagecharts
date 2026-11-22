@@ -40,11 +40,15 @@ struct StageChartsApp: App {
             CommandGroup(after: .appInfo) {
                 Button("Check for Updates…") { updater.controller.checkForUpdates(nil) }
             }
+            CommandGroup(after: .importExport) {
+                Button("Import OnSong Backup…") { importOnSongBackup() }
+            }
         }
         #endif
         #if os(macOS)
         Settings {          // ⌘, on the Mac
             SettingsView(showsDoneButton: false)
+                .onAppear { exportForTesting() }      // dev hooks also run if only Settings reopens
                 .environmentObject(library)
                 .environmentObject(midi)
                 .environmentObject(band)
@@ -62,8 +66,40 @@ struct StageChartsApp: App {
         }
     }
 
+    #if os(macOS)
+    /// File › Import OnSong Backup…: pick a .backup file, import, then show the summary.
+    private func importOnSongBackup() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.data]
+        panel.allowsOtherFileTypes = true
+        panel.message = "Choose an OnSong backup (OnSong › Utilities › Backup & Restore › Back Up Library)"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let alert = NSAlert()
+        do {
+            let report = try OnSongImporter.importBackup(url, into: library)
+            alert.messageText = "OnSong import finished"
+            alert.informativeText = report.summary
+        } catch {
+            alert.messageText = "OnSong import failed"
+            alert.informativeText = error.localizedDescription
+        }
+        alert.runModal()
+    }
+    #endif
+
     /// Developer hook: STAGECHARTS_EXPORT_PDF=/path.pdf exports the active set as a PDF, then quits.
     private func exportForTesting() {
+        #if os(macOS)
+        if let backup = ProcessInfo.processInfo.environment["STAGECHARTS_IMPORT_ONSONG"] {
+            do {
+                let r = try OnSongImporter.importBackup(URL(fileURLWithPath: backup), into: library)
+                print("ONSONG RESULT:\n" + r.summary)
+                print("ONSONG LISTS: pdfOnly=\(r.pdfOnly) documents=\(r.documents) failed=\(r.failed)")
+            } catch { print("ONSONG ERROR:", error.localizedDescription) }
+            UserDefaults.standard.synchronize()
+            exit(0)
+        }
+        #endif
         if let files = ProcessInfo.processInfo.environment["STAGECHARTS_IMPORT"] {
             library.importFiles(files.split(separator: "|").map { URL(fileURLWithPath: String($0)) })
             print("IMPORT RESULT:", library.lastError ?? "ok")

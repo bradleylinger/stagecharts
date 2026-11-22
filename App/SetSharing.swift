@@ -1,4 +1,5 @@
 import Foundation
+import ChordProKit
 import SwiftUI
 import CoreTransferable
 import UniformTypeIdentifiers
@@ -15,6 +16,7 @@ struct SetBundle: Codable {
         var chordPro: String
         var notes: [SongNote]? = nil      // sticky notes travel with the chart
         var tempo: Int? = nil             // the band's BPM
+        var pdfData: Data? = nil          // original document of a PDF-only song
     }
     var format = 1
     var set: SetList
@@ -28,7 +30,8 @@ extension SongLibrary {
         let songs = set.items.compactMap { item -> SetBundle.Song? in
             guard seen.insert(item.songID).inserted, let f = song(id: item.songID) else { return nil }
             let s = settings(for: f.id)
-            return SetBundle.Song(fileName: f.id, chordPro: f.raw, notes: s.notes.isEmpty ? nil : s.notes, tempo: s.tempo)
+            let pdf = f.pdfURL.flatMap { try? Data(contentsOf: $0) }
+            return SetBundle.Song(fileName: f.id, chordPro: f.raw, notes: s.notes.isEmpty ? nil : s.notes, tempo: s.tempo, pdfData: pdf)
         }
         return SetBundle(set: set, songs: songs)
     }
@@ -57,6 +60,14 @@ extension SongLibrary {
         for s in bundle.songs {
             let name = (s.fileName as NSString).lastPathComponent     // never write outside Songs/
             guard !name.isEmpty, !name.hasPrefix(".") else { continue }
+            if let data = s.pdfData, let pdfName = ChordProSong(s.chordPro).pdfFile {
+                let safe = (pdfName as NSString).lastPathComponent
+                let dest = pdfFolder.appendingPathComponent(safe)
+                if (try? Data(contentsOf: dest)) != data {
+                    try FileManager.default.createDirectory(at: pdfFolder, withIntermediateDirectories: true)
+                    Self.coordinatedWrite(data, to: dest)
+                }
+            }
             if song(id: name)?.raw != s.chordPro {
                 try s.chordPro.write(to: folder.appendingPathComponent(name), atomically: true, encoding: .utf8)
             }

@@ -21,6 +21,7 @@
 		70260258E1BF55CC5785D8B7 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60880C5D22BD5AC229020529 /* ContentView.swift */; };
 		814DB6C4EFD897D3DC85DB4B /* What A Beautiful Name-chords-D.pdf in Resources */ = {isa = PBXBuildFile; fileRef = A4278AE6C351D6B6B365E095 /* What A Beautiful Name-chords-D.pdf */; };
 		834E05197C2DBE3C8BD7938D /* Viewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85DF11484BEEE6BFEB620B20 /* Viewer.swift */; };
+		866E77B9965F826F054A449E /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = F841BDEAD333172A85B8241D /* Sparkle */; };
 		8D603252BE575B1EA6BA8D10 /* Build My Life-chords-G.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 79304C82310916CD77B2D8AA /* Build My Life-chords-G.pdf */; };
 		8E36E14CEA02648C844A2E2D /* StageMIDI in Frameworks */ = {isa = PBXBuildFile; productRef = 174C2B55B804072679122DFB /* StageMIDI */; };
 		98C9B59C2C8F432C3B80A56B /* SongLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 091B996D7D21DDF52EDF2838 /* SongLibrary.swift */; };
@@ -74,6 +75,7 @@
 			files = (
 				4FED3463389CD5C9545A839D /* ChordProKit in Frameworks */,
 				8E36E14CEA02648C844A2E2D /* StageMIDI in Frameworks */,
+				866E77B9965F826F054A449E /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -173,6 +175,7 @@
 			packageProductDependencies = (
 				C176A684DB57B53C84E15EA8 /* ChordProKit */,
 				174C2B55B804072679122DFB /* StageMIDI */,
+				F841BDEAD333172A85B8241D /* Sparkle */,
 			);
 			productName = StageCharts;
 			productReference = 3D9E4F54F28DB33A2190982E /* StageCharts.app */;
@@ -203,6 +206,7 @@
 			mainGroup = C34BB0B3809D414FE1A606BB;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				4F00E51FFC08DBAD66C1E3E0 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				9D022492F7A0D8E36B590034 /* XCLocalSwiftPackageReference "." */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -340,7 +344,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bradlinger.stagecharts;
 				PRODUCT_NAME = StageCharts;
 				SDKROOT = auto;
@@ -439,7 +443,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bradlinger.stagecharts;
 				PRODUCT_NAME = StageCharts;
 				SDKROOT = auto;
@@ -482,6 +486,17 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		4F00E51FFC08DBAD66C1E3E0 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.6.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		174C2B55B804072679122DFB /* StageMIDI */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -490,6 +505,11 @@
 		C176A684DB57B53C84E15EA8 /* ChordProKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = ChordProKit;
+		};
+		F841BDEAD333172A85B8241D /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4F00E51FFC08DBAD66C1E3E0 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

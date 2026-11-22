@@ -1,10 +1,21 @@
 import SwiftUI
+#if os(macOS)
+import Sparkle
+
+/// Sparkle auto-updater (Mac only): checks the GitHub releases appcast daily.
+final class AppUpdater {
+    let controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+}
+#endif
 
 @main
 struct StageChartsApp: App {
     @StateObject private var library = SongLibrary()
     @StateObject private var midi = MIDIController()
     @StateObject private var band = BandSync()
+    #if os(macOS)
+    private let updater = AppUpdater()
+    #endif
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("chartStyle") private var styleRaw = ChartStyle.classic.rawValue
 
@@ -24,6 +35,13 @@ struct StageChartsApp: App {
                     if phase == .active, library.usesCustomFolder { library.reloadAll() }   // pick up synced changes
                 }
         }
+        #if os(macOS)
+        .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") { updater.controller.checkForUpdates(nil) }
+            }
+        }
+        #endif
         #if os(macOS)
         Settings {          // ⌘, on the Mac
             SettingsView(showsDoneButton: false)

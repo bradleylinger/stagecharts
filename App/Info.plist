@@ -54,6 +54,14 @@
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>StageCharts uses the local network to receive MIDI from your computer and to share set lists and song changes with your band's iPads.</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/interactivesupply/stagecharts/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>veNPr30O/xROuQOvXh30sZi07N8/MdBI7z2dR9k/CMI=</string>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>

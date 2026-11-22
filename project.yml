@@ -7,6 +7,9 @@ options:
 packages:
   ChordProKit:
     path: .
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.6.4"
 targets:
   StageCharts:
     type: application
@@ -15,6 +18,10 @@ targets:
       path: App/Info.plist
       properties:
         NSLocalNetworkUsageDescription: StageCharts uses the local network to receive MIDI from your computer and to share set lists and song changes with your band's iPads.
+        SUFeedURL: https://github.com/interactivesupply/stagecharts/releases/latest/download/appcast.xml
+        SUPublicEDKey: veNPr30O/xROuQOvXh30sZi07N8/MdBI7z2dR9k/CMI=
+        SUEnableAutomaticChecks: true
+        SUScheduledCheckInterval: 86400
         NSBonjourServices: [_apple-midi._udp, _stagecharts._tcp, _stagecharts._udp]
         UTExportedTypeDeclarations:
           - UTTypeIdentifier: com.bradlinger.stagecharts.set
@@ -40,12 +47,14 @@ targets:
         product: ChordProKit
       - package: ChordProKit
         product: StageMIDI
+      - package: Sparkle
+        destinationFilters: [macOS]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.bradlinger.stagecharts
         DEVELOPMENT_TEAM: 7XA8LJU26H
         PRODUCT_NAME: StageCharts
-        MARKETING_VERSION: "0.1"
+        MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: StageCharts

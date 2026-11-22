@@ -117,6 +117,14 @@ struct ContentView: View {
                                       preview: SharePreview("\(set.name) – set list")) {
                                 Label("Send set list…", systemImage: "ipad.and.arrow.forward")
                             }
+                            Button("Copy for Playback", systemImage: "doc.on.doc") {
+                                let text = library.playbackText(set)
+                                #if os(iOS)
+                                UIPasteboard.general.string = text
+                                #else
+                                NSPasteboard.general.clearContents(); NSPasteboard.general.setString(text, forType: .string)
+                                #endif
+                            }
                             Button("Print set list…", systemImage: "printer") {
                                 ChartPDF.print(ChartPDF.file(for: rendered(set), name: set.name, setTitle: set.name),
                                                jobName: set.name)

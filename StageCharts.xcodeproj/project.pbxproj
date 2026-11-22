@@ -39,6 +39,7 @@
 		C2BD641BB4A6A8BA4DBAD647 /* SetList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 632281883DC5E105CAF56FC7 /* SetList.swift */; };
 		C2FC4A842656B03ECC732E39 /* NotesAndNextUp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BE29341E15A4E650FA9B446 /* NotesAndNextUp.swift */; };
 		CBCB2F39D24FA7DF8E365F10 /* Printing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E9BDFB037C4244B90B476FC /* Printing.swift */; };
+		CD22E208E5EE5FB60DA6C967 /* ChartCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EB08FE317E2A659031F22C2 /* ChartCapture.swift */; };
 		D53480A34A8E7338D5F6A057 /* Way Maker-chords-E.pdf in Resources */ = {isa = PBXBuildFile; fileRef = CDBFDF7E21566C93BA44FE75 /* Way Maker-chords-E.pdf */; };
 		DBC1C47D4E8C675A3CA11ED7 /* Amazing Grace (SongSelect 22025).chordpro in Resources */ = {isa = PBXBuildFile; fileRef = 3A45187F87DBFD0FAE8A5C89 /* Amazing Grace (SongSelect 22025).chordpro */; };
 		E5AF3756A5F6FDD5F84686F0 /* SetSharing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8A2F22BDB2812B05F09E872 /* SetSharing.swift */; };
@@ -71,6 +72,7 @@
 		8A468E4AEE93F9977B5A332E /* SongView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SongView.swift; sourceTree = "<group>"; };
 		9DD48E38F5779A4CEB59D3CB /* I'm So Blessed-chords-D.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "I'm So Blessed-chords-D.pdf"; sourceTree = "<group>"; };
 		9E9BDFB037C4244B90B476FC /* Printing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Printing.swift; sourceTree = "<group>"; };
+		9EB08FE317E2A659031F22C2 /* ChartCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartCapture.swift; sourceTree = "<group>"; };
 		A02822CFB3306464EED52B15 /* onsong_replacement */ = {isa = PBXFileReference; lastKnownFileType = folder; name = onsong_replacement; path = .; sourceTree = SOURCE_ROOT; };
 		A4278AE6C351D6B6B365E095 /* What A Beautiful Name-chords-D.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "What A Beautiful Name-chords-D.pdf"; sourceTree = "<group>"; };
 		A6B63466886982F071B7BC91 /* Goodness Of God-chords-Ab.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "Goodness Of God-chords-Ab.pdf"; sourceTree = "<group>"; };
@@ -148,6 +150,7 @@
 				18F217431FCFBDA2D948BF85 /* Assets.xcassets */,
 				FC1571D3EF446C71B43A48CF /* BandSync.swift */,
 				6FC899D2D34CC1FB2328FC83 /* CCLIReport.swift */,
+				9EB08FE317E2A659031F22C2 /* ChartCapture.swift */,
 				21A29976A890994F13ECF760 /* ChartStyle.swift */,
 				60880C5D22BD5AC229020529 /* ContentView.swift */,
 				F610E83180951504B6804CAF /* GoogleDriveSync.swift */,
@@ -283,6 +286,7 @@
 				B5F4F951EB4787FBB487E842 /* AIViews.swift in Sources */,
 				43F35AA5022AA0A6EF0ACD7C /* BandSync.swift in Sources */,
 				AAC37DBF3FB2D844CC262D98 /* CCLIReport.swift in Sources */,
+				CD22E208E5EE5FB60DA6C967 /* ChartCapture.swift in Sources */,
 				463DDD461CC8CF7012C73666 /* ChartStyle.swift in Sources */,
 				70260258E1BF55CC5785D8B7 /* ContentView.swift in Sources */,
 				2EF3C70C5C943BC762437527 /* GoogleDriveSync.swift in Sources */,

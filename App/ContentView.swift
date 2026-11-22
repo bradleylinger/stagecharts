@@ -369,7 +369,9 @@ struct ContentView: View {
     }
 
     private func leadSendSelection() {
-        if let m = currentSelectMessage { band.send(m) }
+        guard let m = currentSelectMessage else { return }
+        if activeSet == nil, let (file, _, _) = resolveSelection() { band.send(.song(library.sharedSong(file))) }
+        band.send(m)
     }
 
     private func leadSendSet() {
@@ -380,6 +382,7 @@ struct ContentView: View {
         band.snapshot = {
             var msgs: [BandMessage] = []
             if let set = activeSet { msgs.append(.set(library.makeSetBundle(set))) }
+            if activeSet == nil, let (file, _, _) = resolveSelection() { msgs.append(.song(library.sharedSong(file))) }
             if let m = currentSelectMessage { msgs.append(m) }
             return msgs
         }
@@ -396,6 +399,11 @@ struct ContentView: View {
             }
         }
         band.onScroll = { f in midi.send(.scrollTo(f)) }
+        band.onSong = { s in
+            try? library.importShared(s)
+            library.reload()
+            if activeSetRaw != "" { activeSetRaw = "" }       // leader is in the library, not a set
+        }
     }
 
     private func step(_ delta: Int, remote: Bool = false) {

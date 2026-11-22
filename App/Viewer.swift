@@ -129,6 +129,11 @@ struct ViewerRootView: View {
             }
         }
         band.onScroll = { f in midi.send(.scrollTo(f)) }
+        band.onSong = { s in
+            try? library.importShared(s)
+            library.reload()
+            if activeSetRaw != "" { activeSetRaw = "" }
+        }
     }
 }
 

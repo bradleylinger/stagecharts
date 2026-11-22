@@ -57,9 +57,16 @@ extension SongLibrary {
     /// Writes the bundle's songs (only those that changed) and adds/replaces its set.
     @discardableResult
     func importSetBundle(_ bundle: SetBundle) throws -> UUID {
-        for s in bundle.songs {
+        for s in bundle.songs { try importShared(s) }
+        reload()
+        replaceOrAddSet(bundle.set)
+        return bundle.set.id
+    }
+
+    /// One song from the leader / a set file (chart, original PDF, notes, tempo). Call reload() after.
+    func importShared(_ s: SetBundle.Song) throws {
             let name = (s.fileName as NSString).lastPathComponent     // never write outside Songs/
-            guard !name.isEmpty, !name.hasPrefix(".") else { continue }
+            guard !name.isEmpty, !name.hasPrefix(".") else { return }
             if let data = s.pdfData, let pdfName = ChordProSong(s.chordPro).pdfFile {
                 let safe = (pdfName as NSString).lastPathComponent
                 let dest = pdfFolder.appendingPathComponent(safe)
@@ -73,10 +80,13 @@ extension SongLibrary {
             }
             if let notes = s.notes, settings(for: name).notes != notes { update(name) { $0.notes = notes } }
             if let t = s.tempo, settings(for: name).tempo != t { update(name) { $0.tempo = t } }
-        }
-        reload()
-        replaceOrAddSet(bundle.set)
-        return bundle.set.id
+    }
+
+    /// A single song packaged for band sync.
+    func sharedSong(_ f: SongFile) -> SetBundle.Song {
+        let s = settings(for: f.id)
+        return SetBundle.Song(fileName: f.id, chordPro: f.raw, notes: s.notes.isEmpty ? nil : s.notes, tempo: s.tempo,
+                              pdfData: f.pdfURL.flatMap { try? Data(contentsOf: $0) })
     }
 }
 

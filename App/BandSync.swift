@@ -9,6 +9,7 @@ enum BandMessage: Codable {
     case set(SetBundle)                          // the set list and its charts (sent on join and on changes)
     case select(position: Int?, songID: String)  // song changed (position in set, or a library song)
     case scroll(Double)                          // 0...1 of the chart
+    case song(SetBundle.Song)                    // a library song (no set selected): send the chart itself
 }
 
 /// Band follow mode over the local network (Wi-Fi / peer-to-peer) using MultipeerConnectivity.
@@ -31,6 +32,7 @@ final class BandSync: NSObject, ObservableObject {
     var onSet: ((SetBundle) -> Void)?
     var onSelect: ((Int?, String) -> Void)?
     var onScroll: ((Double) -> Void)?
+    var onSong: ((SetBundle.Song) -> Void)?
     /// Leader: current state to send to someone who just joined.
     var snapshot: (() -> [BandMessage])?
 
@@ -122,6 +124,7 @@ final class BandSync: NSObject, ObservableObject {
         case .set(let bundle): onSet?(bundle)
         case .select(let position, let songID): onSelect?(position, songID)
         case .scroll(let f): onScroll?(f)
+        case .song(let s): onSong?(s)
         }
     }
 

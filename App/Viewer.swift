@@ -34,6 +34,7 @@ struct ViewerRootView: View {
                         }
                     }
                 }
+                GoogleDriveSection()
                 Section {
                     Picker("Show", selection: $activeSetRaw) {
                         Text("Library").tag("")

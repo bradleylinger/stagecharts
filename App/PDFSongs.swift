@@ -24,7 +24,10 @@ struct PDFKitView {
         v.autoScales = true
         v.displayMode = .singlePageContinuous
         v.displayDirection = .vertical
-        if v.document?.documentURL != url { v.document = PDFDocument(url: url) }
+        if v.document?.documentURL != url {
+            // Cloud folders may not have the file locally yet: a coordinated read downloads it.
+            v.document = PDFDocument(url: url) ?? SongLibrary.coordinatedData(url).flatMap { PDFDocument(data: $0) }
+        }
     }
 
     private func apply(_ v: PDFView, _ c: Coordinator) {

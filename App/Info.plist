@@ -62,6 +62,8 @@
 	<string>veNPr30O/xROuQOvXh30sZi07N8/MdBI7z2dR9k/CMI=</string>
 	<key>SUScheduledCheckInterval</key>
 	<integer>86400</integer>
+	<key>StageChartsGoogleClientID</key>
+	<string></string>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>

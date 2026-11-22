@@ -9,6 +9,8 @@ struct SettingsView: View {
     @EnvironmentObject var midi: MIDIController
     @EnvironmentObject var library: SongLibrary
     @EnvironmentObject var band: BandSync
+    @EnvironmentObject var googleAuth: GoogleAuth
+    @EnvironmentObject var drive: GoogleDriveSync
     @Environment(\.dismiss) private var dismiss
     @AppStorage("chartStyle") private var styleRaw = ChartStyle.classic.rawValue
     @AppStorage("chartColumns") private var columnsRaw = ChartColumns.auto.rawValue
@@ -35,6 +37,7 @@ struct SettingsView: View {
                 sendSection
                 songsSection
                 monitorSection
+                GoogleDriveSection()
                 librarySection
                 Section("Display") {
                     Picker("Chart style", selection: $styleRaw) {
@@ -75,9 +78,9 @@ struct SettingsView: View {
             }
             if let folderError { Text(folderError).foregroundStyle(.red) }
         } header: {
-            Text("Library & sync")
+            Text("Library folder (advanced)")
         } footer: {
-            Text("Keep songs, set lists and notes in a Google Drive folder so every device stays in sync. On iPad: install the Google Drive app, then pick Google Drive › a folder (e.g. “StageCharts”). On the Mac: pick that folder inside Google Drive (Drive for Desktop). Your current library is copied in the first time.")
+            Text("Keep the library in a folder of your choice (e.g. iCloud Drive, or Drive for Desktop on the Mac). For Google Drive on iPad, use “Sign in with Google” above instead — the Google Drive app doesn't let other apps open folders.")
         }
         .fileImporter(isPresented: $pickingFolder, allowedContentTypes: [.folder]) { result in
             switch result {

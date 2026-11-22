@@ -263,3 +263,44 @@ struct TempoEditor: View {
         tempo = Int((60 / (intervals.reduce(0, +) / Double(intervals.count))).rounded())
     }
 }
+
+// MARK: - Google Drive settings
+
+/// Sign in / status / sync now. Used in Settings and in the band viewer.
+struct GoogleDriveSection: View {
+    @EnvironmentObject var googleAuth: GoogleAuth
+    @EnvironmentObject var drive: GoogleDriveSync
+    @EnvironmentObject var library: SongLibrary
+    @State private var signInError: String?
+
+    var body: some View {
+        Section(header: Text("Google Drive"),
+                footer: Text("Keeps your library (songs, original PDFs, set lists, notes, keys) in “StageCharts Library” in your Google Drive and syncs it with every device signed in to the same account. StageCharts can only see files it created.")) {
+            if !googleAuth.isConfigured {
+                Text("Google sign-in isn't set up in this build yet.").foregroundColor(.secondary)
+            } else if !googleAuth.isSignedIn {
+                Button("Sign in with Google") {
+                    Task {
+                        do { try await googleAuth.signIn(); signInError = nil; await drive.syncNow() }
+                        catch { signInError = error.localizedDescription }
+                    }
+                }
+            } else {
+                HStack {
+                    Text(googleAuth.email ?? "Signed in")
+                    Spacer()
+                    Text(drive.isSyncing ? "Syncing…" : drive.status).foregroundColor(.secondary).font(.callout)
+                }
+                if let last = drive.lastSync {
+                    Text("Last synced \(last.formatted(date: .omitted, time: .shortened))").font(.caption).foregroundColor(.secondary)
+                }
+                Button("Sync now") { Task { await drive.syncNow() } }.disabled(drive.isSyncing)
+                if library.usesCustomFolder {
+                    Button("Keep the library on this device (recommended with Google sign-in)") { library.moveToDeviceStorage() }
+                }
+                Button("Sign out of Google", role: .destructive) { googleAuth.signOut() }
+            }
+            if let e = signInError ?? drive.lastError { Text(e).foregroundColor(.red).font(.caption) }
+        }
+    }
+}

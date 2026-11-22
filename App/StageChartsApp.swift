@@ -10,7 +10,16 @@ final class AppUpdater {
 
 @main
 struct StageChartsApp: App {
-    @StateObject private var library = SongLibrary()
+    @StateObject private var library: SongLibrary
+    @StateObject private var googleAuth: GoogleAuth
+    @StateObject private var drive: GoogleDriveSync
+
+    init() {
+        let lib = SongLibrary(), auth = GoogleAuth()
+        _library = StateObject(wrappedValue: lib)
+        _googleAuth = StateObject(wrappedValue: auth)
+        _drive = StateObject(wrappedValue: GoogleDriveSync(auth: auth, library: lib))
+    }
     @StateObject private var midi = MIDIController()
     @StateObject private var band = BandSync()
     #if os(macOS)
@@ -25,6 +34,8 @@ struct StageChartsApp: App {
                 .environmentObject(library)
                 .environmentObject(midi)
                 .environmentObject(band)
+                .environmentObject(googleAuth)
+                .environmentObject(drive)
                 #if os(iOS)
                 .onAppear { UIApplication.shared.isIdleTimerDisabled = true }   // keep screen on stage
                 #endif
@@ -32,8 +43,11 @@ struct StageChartsApp: App {
                 .onAppear { wireLearning(); exportForTesting() }
                 .handlesExternalEvents(preferring: ["*"], allowing: ["*"])   // open files in this window
                 .onChange(of: scenePhase) { phase in
-                    if phase == .active, library.usesCustomFolder { library.reloadAll() }   // pick up synced changes
+                    guard phase == .active else { return }
+                    if library.usesCustomFolder { library.reloadAll() }   // pick up synced changes
+                    drive.scheduleSync(after: 0)
                 }
+                .onAppear { drive.scheduleSync(after: 0) }
         }
         #if os(macOS)
         .commands {
@@ -50,6 +64,8 @@ struct StageChartsApp: App {
             SettingsView(showsDoneButton: false)
                 .onAppear { exportForTesting() }      // dev hooks also run if only Settings reopens
                 .environmentObject(library)
+                .environmentObject(googleAuth)
+                .environmentObject(drive)
                 .environmentObject(midi)
                 .environmentObject(band)
                 .preferredColorScheme((ChartStyle(rawValue: styleRaw) ?? .classic).colorScheme)

@@ -54,6 +54,8 @@ final class SongLibrary: ObservableObject {
     @Published private(set) var settings: [String: SongSettings] = [:]
     @Published var lastError: String?
     @Published private(set) var setLists: [SetList] = []
+    /// Called after the library changes on this device (Google Drive sync listens).
+    var onLocalChange: (() -> Void)?
 
     static let extensions: Set<String> = ["chordpro", "cho", "crd", "chopro", "pro", "txt"]
 
@@ -149,6 +151,33 @@ final class SongLibrary: ObservableObject {
         reload()
     }
 
+    /// Brings the library from a shared folder onto this device (merging), then uses device storage.
+    /// Used when switching from a Drive-for-Desktop folder to built-in Google Drive sync.
+    func moveToDeviceStorage() {
+        guard usesCustomFolder else { return }
+        let fm = FileManager.default
+        let dest = Self.deviceBase.appendingPathComponent("Songs", isDirectory: true)
+        let destPDF = dest.appendingPathComponent("PDF", isDirectory: true)
+        try? fm.createDirectory(at: destPDF, withIntermediateDirectories: true)
+        for (src, dst) in [(folder, dest), (pdfFolder, destPDF)] {
+            for name in (try? fm.contentsOfDirectory(atPath: src.path)) ?? [] {
+                let s = src.appendingPathComponent(name), d = dst.appendingPathComponent(name)
+                var isDir: ObjCBool = false
+                guard fm.fileExists(atPath: s.path, isDirectory: &isDir), !isDir.boolValue else { continue }
+                if let data = Self.coordinatedData(s), (try? Data(contentsOf: d)) != data { try? data.write(to: d, options: .atomic) }
+            }
+        }
+        let mySettings = settings, mySets = setLists
+        useDeviceStorage()
+        settings = settings.merging(mySettings) { _, mine in mine }
+        saveSettings()
+        var byID = Dictionary(setLists.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        for s in mySets { byID[s.id] = s }
+        setLists = byID.values.sorted { $0.date > $1.date }
+        saveSetLists()
+        reload()
+    }
+
     /// Switches back to this device's own storage (the shared folder is left untouched).
     func useDeviceStorage() {
         UserDefaults.standard.removeObject(forKey: Self.bookmarkKey)
@@ -166,6 +195,13 @@ final class SongLibrary: ObservableObject {
         var urls: [URL] = []
         Self.coordinate(readingAt: folder) { u in
             urls = (try? fm.contentsOfDirectory(at: u, includingPropertiesForKeys: nil)) ?? []
+        }
+        // iCloud Drive may keep only a placeholder (".Name.chordpro.icloud") on this device; use the real
+        // name — reading it below downloads it.
+        urls = urls.map { u in
+            let n = u.lastPathComponent
+            guard n.hasPrefix("."), n.hasSuffix(".icloud") else { return u }
+            return u.deletingLastPathComponent().appendingPathComponent(String(n.dropFirst().dropLast(7)))
         }
         songs = urls
             .filter { Self.extensions.contains($0.pathExtension.lowercased()) }
@@ -300,6 +336,7 @@ final class SongLibrary: ObservableObject {
 
     private func write(_ text: String, to url: URL) throws {
         guard let data = text.data(using: .utf8) else { throw CocoaError(.fileWriteInapplicableStringEncoding) }
+        defer { onLocalChange?() }
         guard Self.coordinatedWrite(data, to: url) else {
             throw NSError(domain: "StageCharts", code: 2, userInfo: [NSLocalizedDescriptionKey:
                 "couldn't save to \(url.deletingLastPathComponent().path) – is the library folder available?"])
@@ -385,6 +422,7 @@ final class SongLibrary: ObservableObject {
 
     private func saveSettings() {
         if let data = try? JSONEncoder().encode(settings) { Self.coordinatedWrite(data, to: settingsURL) }
+        onLocalChange?()
     }
 
     // MARK: Set lists
@@ -432,6 +470,7 @@ final class SongLibrary: ObservableObject {
 
     private func saveSetLists() {
         if let data = try? JSONEncoder.setLists.encode(setLists) { Self.coordinatedWrite(data, to: setListsURL) }
+        onLocalChange?()
     }
 
     // MARK: Helpers
@@ -448,21 +487,30 @@ final class SongLibrary: ObservableObject {
 
     // MARK: Coordinated file access (lets cloud providers like Google Drive download/upload safely)
 
-    static func coordinate(readingAt url: URL, _ body: (URL) -> Void) {
+    nonisolated static func coordinate(readingAt url: URL, _ body: (URL) -> Void) {
         var error: NSError?
         NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &error, byAccessor: body)
         if error != nil { body(url) }
     }
 
-    static func coordinatedData(_ url: URL) -> Data? {
-        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+    /// iCloud placeholder for a file that hasn't been downloaded to this device yet.
+    nonisolated static func placeholder(for url: URL) -> URL {
+        url.deletingLastPathComponent().appendingPathComponent("." + url.lastPathComponent + ".icloud")
+    }
+
+    nonisolated static func coordinatedData(_ url: URL) -> Data? {
+        let fm = FileManager.default
+        if !fm.fileExists(atPath: url.path) {
+            guard fm.fileExists(atPath: placeholder(for: url).path) else { return nil }
+            try? fm.startDownloadingUbiquitousItem(at: url)   // coordinated read below waits for it
+        }
         var data: Data?
         coordinate(readingAt: url) { data = try? Data(contentsOf: $0) }
         return data
     }
 
     @discardableResult
-    static func coordinatedWrite(_ data: Data, to url: URL) -> Bool {
+    nonisolated static func coordinatedWrite(_ data: Data, to url: URL) -> Bool {
         var error: NSError?
         var ok = false
         NSFileCoordinator().coordinate(writingItemAt: url, options: .forReplacing, error: &error) { u in
@@ -472,7 +520,7 @@ final class SongLibrary: ObservableObject {
         return ok
     }
 
-    static func readText(_ url: URL) -> String? {
+    nonisolated static func readText(_ url: URL) -> String? {
         guard let data = coordinatedData(url) else { return nil }
         return String(data: data, encoding: .utf8)
             ?? String(data: data, encoding: .windowsCP1252)

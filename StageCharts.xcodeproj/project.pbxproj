@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		0272F65122764D1B0C4C5682 /* StageChartsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 361823FFCAF73327E5C09571 /* StageChartsApp.swift */; };
 		0EBC9EAE73520AEE80846B26 /* Holy Forever-chords-Bb.pdf in Resources */ = {isa = PBXBuildFile; fileRef = D2F173F76CF67C4D3EABEEB0 /* Holy Forever-chords-Bb.pdf */; };
+		2EF3C70C5C943BC762437527 /* GoogleDriveSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = F610E83180951504B6804CAF /* GoogleDriveSync.swift */; };
 		303A87FAB87E127745E61A8A /* Goodness Of God-chords-Ab.pdf in Resources */ = {isa = PBXBuildFile; fileRef = A6B63466886982F071B7BC91 /* Goodness Of God-chords-Ab.pdf */; };
 		35B887185C3446B0A7A15D00 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 18F217431FCFBDA2D948BF85 /* Assets.xcassets */; };
 		3B125EAA9BDFF3924CC3861B /* O Come O Come Emmanuel (Veni Emmanuel)-chords-Em.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2810C66E88BA23020D1CB4A5 /* O Come O Come Emmanuel (Veni Emmanuel)-chords-Em.pdf */; };
@@ -69,6 +70,7 @@
 		CDBFDF7E21566C93BA44FE75 /* Way Maker-chords-E.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "Way Maker-chords-E.pdf"; sourceTree = "<group>"; };
 		D2F173F76CF67C4D3EABEEB0 /* Holy Forever-chords-Bb.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "Holy Forever-chords-Bb.pdf"; sourceTree = "<group>"; };
 		F1A5BA7E448D4DA7AF76F21D /* PDFSongs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFSongs.swift; sourceTree = "<group>"; };
+		F610E83180951504B6804CAF /* GoogleDriveSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleDriveSync.swift; sourceTree = "<group>"; };
 		FC1571D3EF446C71B43A48CF /* BandSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BandSync.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -127,6 +129,7 @@
 				FC1571D3EF446C71B43A48CF /* BandSync.swift */,
 				21A29976A890994F13ECF760 /* ChartStyle.swift */,
 				60880C5D22BD5AC229020529 /* ContentView.swift */,
+				F610E83180951504B6804CAF /* GoogleDriveSync.swift */,
 				B310C466F38F77069111DFE3 /* Info.plist */,
 				612802D3AC5B7FD50E44A145 /* MIDIController.swift */,
 				4BE29341E15A4E650FA9B446 /* NotesAndNextUp.swift */,
@@ -255,6 +258,7 @@
 				43F35AA5022AA0A6EF0ACD7C /* BandSync.swift in Sources */,
 				463DDD461CC8CF7012C73666 /* ChartStyle.swift in Sources */,
 				70260258E1BF55CC5785D8B7 /* ContentView.swift in Sources */,
+				2EF3C70C5C943BC762437527 /* GoogleDriveSync.swift in Sources */,
 				B1AF04A2A02CC3C57A1CB5D5 /* MIDIController.swift in Sources */,
 				C2FC4A842656B03ECC732E39 /* NotesAndNextUp.swift in Sources */,
 				AFAFE8471767F73ACB5F5E83 /* OnSongImporter.swift in Sources */,

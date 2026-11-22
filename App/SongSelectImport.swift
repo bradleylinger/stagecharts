@@ -217,7 +217,7 @@ struct WebView {
     let url: URL
     let onDownload: (URL) -> Void
 
-    final class Coordinator: NSObject, WKNavigationDelegate, WKDownloadDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKDownloadDelegate, WKScriptMessageHandler {
         var onDownload: (URL) -> Void
         var lastURL: URL?
         private var destinations: [ObjectIdentifier: URL] = [:]
@@ -242,6 +242,20 @@ struct WebView {
             destinations[ObjectIdentifier(download)] = dest
             completionHandler(dest)
         }
+        /// SongSelect builds files in the page (blob: links); the injected script sends them here.
+        func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard let body = message.body as? [String: Any], let dataURL = body["data"] as? String,
+                  let comma = dataURL.firstIndex(of: ","),
+                  let data = Data(base64Encoded: String(dataURL[dataURL.index(after: comma)...])) else { return }
+            let raw = (body["name"] as? String) ?? "download.pdf"
+            let name = raw.components(separatedBy: CharacterSet(charactersIn: "/\\:?%*|\"<>")).joined(separator: "-")
+            let dir = FileManager.default.temporaryDirectory.appendingPathComponent("songselect-downloads", isDirectory: true)
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            let dest = dir.appendingPathComponent(UUID().uuidString.prefix(6) + "-" + name)
+            guard (try? data.write(to: dest)) != nil else { return }
+            onDownload(dest)
+        }
+
         func downloadDidFinish(_ download: WKDownload) {
             guard let dest = destinations.removeValue(forKey: ObjectIdentifier(download)) else { return }
             DispatchQueue.main.async { self.onDownload(dest) }
@@ -251,7 +265,12 @@ struct WebView {
     func makeCoordinator() -> Coordinator { Coordinator(onDownload: onDownload) }
 
     private func make(_ c: Coordinator) -> WKWebView {
-        let v = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())   // default store: stays signed in
+        let config = WKWebViewConfiguration()                                      // default store: stays signed in
+        if let js = Bundle.main.url(forResource: "songselect-download", withExtension: "js").flatMap({ try? String(contentsOf: $0) }) {
+            config.userContentController.addUserScript(WKUserScript(source: js, injectionTime: .atDocumentStart, forMainFrameOnly: false))
+            config.userContentController.add(c, name: "stagechartsDownload")
+        }
+        let v = WKWebView(frame: .zero, configuration: config)
         v.navigationDelegate = c
         v.load(URLRequest(url: url)); c.lastURL = url
         return v

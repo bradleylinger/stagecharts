@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0272F65122764D1B0C4C5682 /* StageChartsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 361823FFCAF73327E5C09571 /* StageChartsApp.swift */; };
+		07BDAD5006843AE396EC8FAD /* songselect-download.js in Resources */ = {isa = PBXBuildFile; fileRef = 471BF70D51D2B70D91E80B9E /* songselect-download.js */; };
 		0EBC9EAE73520AEE80846B26 /* Holy Forever-chords-Bb.pdf in Resources */ = {isa = PBXBuildFile; fileRef = D2F173F76CF67C4D3EABEEB0 /* Holy Forever-chords-Bb.pdf */; };
 		2EF3C70C5C943BC762437527 /* GoogleDriveSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = F610E83180951504B6804CAF /* GoogleDriveSync.swift */; };
 		303A87FAB87E127745E61A8A /* Goodness Of God-chords-Ab.pdf in Resources */ = {isa = PBXBuildFile; fileRef = A6B63466886982F071B7BC91 /* Goodness Of God-chords-Ab.pdf */; };
@@ -53,6 +54,7 @@
 		3A45187F87DBFD0FAE8A5C89 /* Amazing Grace (SongSelect 22025).chordpro */ = {isa = PBXFileReference; path = "Amazing Grace (SongSelect 22025).chordpro"; sourceTree = "<group>"; };
 		3D9E4F54F28DB33A2190982E /* StageCharts.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = StageCharts.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4547B3556E743C036C9499A3 /* House Of The Lord-chords-Bb.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "House Of The Lord-chords-Bb.pdf"; sourceTree = "<group>"; };
+		471BF70D51D2B70D91E80B9E /* songselect-download.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = "songselect-download.js"; sourceTree = "<group>"; };
 		4BE29341E15A4E650FA9B446 /* NotesAndNextUp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotesAndNextUp.swift; sourceTree = "<group>"; };
 		55FBD50C2C4893DEB5077DD6 /* OnSongImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnSongImporter.swift; sourceTree = "<group>"; };
 		60880C5D22BD5AC229020529 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -90,6 +92,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		0087A5A3E4DAF78877D8496C /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				471BF70D51D2B70D91E80B9E /* songselect-download.js */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
 		3CAC91EFDA9A40241A66A79D /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -146,6 +156,7 @@
 				8A468E4AEE93F9977B5A332E /* SongView.swift */,
 				361823FFCAF73327E5C09571 /* StageChartsApp.swift */,
 				85DF11484BEEE6BFEB620B20 /* Viewer.swift */,
+				0087A5A3E4DAF78877D8496C /* Resources */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -248,6 +259,7 @@
 				F4354D9EC2B4C9806AE1E48E /* This Is How I Thank The Lord-chords-G.pdf in Resources */,
 				D53480A34A8E7338D5F6A057 /* Way Maker-chords-E.pdf in Resources */,
 				814DB6C4EFD897D3DC85DB4B /* What A Beautiful Name-chords-D.pdf in Resources */,
+				07BDAD5006843AE396EC8FAD /* songselect-download.js in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -372,13 +372,12 @@ struct SongView: View {
                 .keyboardShortcut(.pageUp, modifiers: []).frame(width: 0).opacity(0)
 
             if file.song.source.isTransposable {
-                Button { shift(-1) } label: { Text("♭").font(.title2.bold()) }
-                    .keyboardShortcut("[", modifiers: [])
-                    .help("Down a half step  [")
                 keyMenu
-                Button { shift(1) } label: { Text("♯").font(.title2.bold()) }
-                    .keyboardShortcut("]", modifiers: [])
-                    .help("Up a half step  ]")
+                // Half-step keys stay available on a keyboard ([ and ]) without toolbar buttons.
+                Button { shift(-1) } label: { EmptyView() }
+                    .keyboardShortcut("[", modifiers: []).frame(width: 0).opacity(0)
+                Button { shift(1) } label: { EmptyView() }
+                    .keyboardShortcut("]", modifiers: []).frame(width: 0).opacity(0)
             }
 
             Menu {

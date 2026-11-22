@@ -2,7 +2,7 @@
 # Builds, signs (Developer ID), notarizes and publishes a Mac release with a Sparkle update feed.
 #   tools/release-mac.sh 1.0.1 "What's new in this version"
 # One-time setup:
-#   xcrun notarytool store-credentials stagecharts-notary --apple-id <you> --team-id 7XA8LJU26H
+#   xcrun notarytool store-credentials electron-notarize --apple-id <you> --team-id 7XA8LJU26H
 #   (Sparkle signing key lives in the login keychain, account "stagecharts")
 set -euo pipefail
 VERSION="${1:?usage: release-mac.sh <version> [notes]}"
@@ -31,7 +31,7 @@ APP="$OUT/export/StageCharts.app"
 
 echo "▸ Notarize"
 ditto -c -k --keepParent "$APP" "$OUT/notarize.zip"
-xcrun notarytool submit "$OUT/notarize.zip" --keychain-profile stagecharts-notary --wait
+xcrun notarytool submit "$OUT/notarize.zip" --keychain-profile "${NOTARY_PROFILE:-electron-notarize}" --wait
 xcrun stapler staple "$APP"
 spctl -a -vv "$APP"
 

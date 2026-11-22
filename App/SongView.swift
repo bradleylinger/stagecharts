@@ -351,11 +351,14 @@ struct SongView: View {
             }
 
             Menu {
-                Picker("Capo", selection: Binding(get: { capo }, set: { setCapo($0) })) {
-                    Text("No capo").tag(0)
-                    ForEach(1...9, id: \.self) { n in
-                        let shape = currentKey?.transposed(by: -n).description
-                        Text("Capo \(n)" + (shape.map { "  (\($0) shapes)" } ?? "")).tag(n)
+                // Frets listed directly (no nested "Capo" submenu); a checkmark shows the current one.
+                Button { setCapo(0) } label: {
+                    if capo == 0 { Label("No capo", systemImage: "checkmark") } else { Text("No capo") }
+                }
+                ForEach(1...9, id: \.self) { n in
+                    let name = "Capo \(n)" + (currentKey?.transposed(by: -n).description).map { "  (\($0) shapes)" }.orEmpty
+                    Button { setCapo(n) } label: {
+                        if capo == n { Label(name, systemImage: "checkmark") } else { Text(name) }
                     }
                 }
             } label: {
@@ -430,6 +433,10 @@ struct SongView: View {
         if v < -5 { v += 12 }
         setSemitones(v)
     }
+}
+
+private extension Optional where Wrapped == String {
+    var orEmpty: String { self ?? "" }
 }
 
 // MARK: - Section rendering

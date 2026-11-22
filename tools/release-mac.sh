@@ -8,7 +8,7 @@ set -euo pipefail
 VERSION="${1:?usage: release-mac.sh <version> [notes]}"
 NOTES="${2:-StageCharts $VERSION}"
 cd "$(dirname "$0")/.."
-REPO=interactivesupply/stagecharts
+REPO=bradleylinger/stagecharts
 BUILD=$(git rev-list --count HEAD)
 OUT=.build/release/$VERSION
 FEED=.build/release/appcast

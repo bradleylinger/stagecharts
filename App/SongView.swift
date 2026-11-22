@@ -34,6 +34,8 @@ struct SongView: View {
         var offset: CGFloat = 0
         var content: CGFloat = 0
         var container: CGFloat = 0
+        /// Top inset the scroll view already adds by itself (safe area it still honours).
+        var insetTop: CGFloat = 0
         var maxOffset: CGFloat { max(0, content - container) }
     }
 
@@ -177,8 +179,8 @@ struct SongView: View {
                 }
                 .scrollTargetLayout()
                 .padding(.horizontal, horizontalPadding)
-                .padding(.vertical, size * 1.2)
-                .padding(.top, topBarSpace)
+                .padding(.bottom, size * 1.2)
+                .padding(.top, (chromeHidden ? size * 0.4 : size * 1.2) + max(0, topBarSpace - metrics.insetTop))
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .background(style.background)
@@ -191,7 +193,7 @@ struct SongView: View {
             .onScrollGeometryChange(for: ScrollMetrics.self) { g in
                 ScrollMetrics(offset: g.contentOffset.y + g.contentInsets.top,
                               content: g.contentSize.height + g.contentInsets.top + g.contentInsets.bottom,
-                              container: g.containerSize.height)
+                              container: g.containerSize.height, insetTop: g.contentInsets.top)
             } action: { _, new in
                 metrics = new
                 if new.maxOffset > 0 { band.sendScroll(Double(min(1, max(0, new.offset / new.maxOffset)))) }

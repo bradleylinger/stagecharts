@@ -14,6 +14,6 @@ xcodebuild -project StageCharts.xcodeproj -scheme StageCharts -configuration Rel
   -destination 'generic/platform=iOS' -archivePath "$OUT/StageCharts.xcarchive" \
   -allowProvisioningUpdates MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD" archive | tail -3
 echo "== Uploading to App Store Connect"
-xcodebuild -exportArchive -archivePath "$OUT/StageCharts.xcarchive" -exportPath "$OUT/export" \
+PATH="/usr/bin:/bin:/usr/sbin:/sbin:$PATH" xcodebuild -exportArchive -archivePath "$OUT/StageCharts.xcarchive" -exportPath "$OUT/export" \
   -exportOptionsPlist tools/ExportOptions-ios.plist -allowProvisioningUpdates | tail -5
 echo "✓ Uploaded $VERSION ($BUILD). It shows up in TestFlight after Apple finishes processing (usually 5–20 min)."

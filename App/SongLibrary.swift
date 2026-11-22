@@ -106,29 +106,47 @@ final class SongLibrary: ObservableObject {
     }
 
     /// Moves the library into `url` (a folder picked by the user, e.g. in Google Drive). If that folder
-    /// doesn't contain a StageCharts library yet, the current songs, set lists and settings are copied in.
+    /// already holds a library, the two are merged: songs and documents missing on either side are
+    /// added, set lists and settings are combined (the shared folder wins where both have an entry).
     func useFolder(_ url: URL) throws {
         guard url.startAccessingSecurityScopedResource() || FileManager.default.isReadableFile(atPath: url.path) else {
             throw CocoaError(.fileReadNoPermission)
         }
         let fm = FileManager.default
         let target = url.appendingPathComponent("Songs", isDirectory: true)
-        if !fm.fileExists(atPath: target.path) {
-            try fm.createDirectory(at: target, withIntermediateDirectories: true)
-            for f in songs { try? fm.copyItem(at: f.url, to: target.appendingPathComponent(f.id)) }
-            if fm.fileExists(atPath: pdfFolder.path) {
-                try? fm.copyItem(at: pdfFolder, to: target.appendingPathComponent("PDF", isDirectory: true))
-            }
-            for name in ["song-settings.json", "setlists.json"] {
-                let src = base.appendingPathComponent(name)
-                if fm.fileExists(atPath: src.path) { try? fm.copyItem(at: src, to: url.appendingPathComponent(name)) }
+        let targetPDF = target.appendingPathComponent("PDF", isDirectory: true)
+        try fm.createDirectory(at: targetPDF, withIntermediateDirectories: true)
+        func copyMissing(from src: URL, to dst: URL) {
+            for name in (try? fm.contentsOfDirectory(atPath: src.path)) ?? [] {
+                let s = src.appendingPathComponent(name), d = dst.appendingPathComponent(name)
+                var isDir: ObjCBool = false
+                guard fm.fileExists(atPath: s.path, isDirectory: &isDir), !isDir.boolValue,
+                      !fm.fileExists(atPath: d.path) else { continue }
+                try? fm.copyItem(at: s, to: d)
             }
         }
+        copyMissing(from: folder, to: target)
+        copyMissing(from: pdfFolder, to: targetPDF)
+
+        // Merge settings and set lists (shared folder wins on conflicts).
+        let mySettings = settings, mySets = setLists
+        let theirSettings = Self.coordinatedData(url.appendingPathComponent("song-settings.json"))
+            .flatMap { try? JSONDecoder().decode([String: SongSettings].self, from: $0) } ?? [:]
+        let theirSets = Self.coordinatedData(url.appendingPathComponent("setlists.json"))
+            .flatMap { try? JSONDecoder.setLists.decode([SetList].self, from: $0) } ?? []
+
         UserDefaults.standard.set(try url.bookmarkData(), forKey: Self.bookmarkKey)
         if usesCustomFolder { base.stopAccessingSecurityScopedResource() }
         base = url
         usesCustomFolder = true
-        reloadAll()
+
+        settings = mySettings.merging(theirSettings) { _, theirs in theirs }
+        saveSettings()
+        var byID = Dictionary(mySets.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        for s in theirSets { byID[s.id] = s }
+        setLists = byID.values.sorted { $0.date > $1.date }
+        saveSetLists()
+        reload()
     }
 
     /// Switches back to this device's own storage (the shared folder is left untouched).

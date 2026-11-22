@@ -255,8 +255,9 @@ struct SongView: View {
                 let dx = v.translation.width, dy = v.translation.height
                 let predicted = v.predictedEndTranslation.width
                 let horizontal = v.startLocation.x > 30 && abs(dx) > abs(dy) * 1.5
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { swipeOffset = 0 }
-                guard horizontal, abs(dx) > 70 || abs(predicted) > 160 else { return }
+                let switching = horizontal && (abs(dx) > 70 || abs(predicted) > 160)
+                if !switching { withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { swipeOffset = 0 } }
+                guard switching else { return }
                 midi.sendLocal(dx < 0 ? .nextSong : .previousSong)
             }
     }
@@ -304,15 +305,15 @@ struct SongView: View {
         }
     }
 
-    private func scroll(toY y: CGFloat, duration: Double = 0.35) {
-        withAnimation(.easeInOut(duration: duration)) {
+    private func scroll(toY y: CGFloat, duration: Double = 0.45) {
+        withAnimation(.smooth(duration: duration)) {
             position.scrollTo(y: min(max(0, y), metrics.maxOffset))
         }
     }
 
     private func goToSection(_ index: Int) {
         currentSection = index
-        withAnimation(.easeInOut(duration: 0.35)) {
+        withAnimation(.smooth(duration: 0.45)) {
             position.scrollTo(id: index < 0 ? -1 : index, anchor: .top)
         }
     }

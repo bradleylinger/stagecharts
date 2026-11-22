@@ -22,6 +22,8 @@ struct ContentView: View {
     @State private var showNewSet = false
     @State private var pendingSongForNewSet: String?
     @State private var columnVisibility = NavigationSplitViewVisibility.automatic
+    /// Direction of the last next/previous move: the new song slides in from that side (0 = crossfade).
+    @State private var songDirection = 0
     /// True while applying a selection that came from MIDI or the band leader (don't echo it back).
     @State private var remoteSelection = false
 
@@ -45,7 +47,9 @@ struct ContentView: View {
     }
 
     var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
+        NavigationSplitView(columnVisibility: Binding(
+            get: { columnVisibility },
+            set: { v in withAnimation(.smooth(duration: 0.3)) { columnVisibility = v } })) {
             VStack(spacing: 0) {
                 sourcePicker
                 if let set = activeSet { setListView(set) } else { libraryView }
@@ -85,13 +89,17 @@ struct ContentView: View {
                 }
             }
         } detail: {
-            Group {
+            ZStack {
                 if let (file, setID, itemID) = resolveSelection() {
-                    SongView(file: file, setID: setID, itemID: itemID).id(selection)
+                    SongView(file: file, setID: setID, itemID: itemID)
+                        .id(selection)
+                        .transition(songTransition)
                 } else {
                     ContentUnavailableView("Pick a song", systemImage: "music.note")
                 }
             }
+            .clipped()
+            .animation(.smooth(duration: 0.35), value: selection)
             .toolbar {
                 ToolbarItem(placement: .navigation) {
                     Button { showSettings = true } label: { Label("Settings", systemImage: "gearshape") }
@@ -411,7 +419,23 @@ struct ContentView: View {
         guard !list.isEmpty else { return }
         let current = list.firstIndex(of: selection ?? "") ?? -delta
         let target = list[max(0, min(list.count - 1, current + delta))]
-        if remote { selectRemotely(target) } else { selection = target }
+        guard target != selection else { return }
+        // Set the direction first (so the outgoing song gets the matching exit), then switch.
+        songDirection = delta > 0 ? 1 : -1
+        DispatchQueue.main.async {
+            if remote { selectRemotely(target) } else { selection = target }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { songDirection = 0 }
+        }
+    }
+
+    private var songTransition: AnyTransition {
+        switch songDirection {
+        case 1:  return .asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
+                                    removal: .move(edge: .leading).combined(with: .opacity))
+        case -1: return .asymmetric(insertion: .move(edge: .leading).combined(with: .opacity),
+                                    removal: .move(edge: .trailing).combined(with: .opacity))
+        default: return .opacity
+        }
     }
 
     private func keyText(_ file: SongFile, item: SetItem?) -> String? {

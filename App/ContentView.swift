@@ -24,6 +24,7 @@ struct ContentView: View {
     @State private var columnVisibility = NavigationSplitViewVisibility.automatic
     /// Direction of the last next/previous move: the new song slides in from that side (0 = crossfade).
     @State private var songDirection = 0
+    @AppStorage(FollowerCapo.storageKey) private var followerCaposRaw = ""
     /// True while applying a selection that came from MIDI or the band leader (don't echo it back).
     @State private var remoteSelection = false
 
@@ -442,7 +443,7 @@ struct ContentView: View {
         guard let k = file.song.key else { return nil }
         let s = library.settings(for: file.id)
         let semis = item?.semitones ?? s.semitones
-        let capo = item?.capo ?? s.capo
+        let capo = band.role == .follow ? FollowerCapo.capo(for: file.id, in: followerCaposRaw) : (item?.capo ?? s.capo)
         var parts = [k.transposed(by: semis).description]
         if capo > 0 { parts.append("Capo \(capo)") }
         if item != nil, let bpm = library.tempo(for: file) { parts.append("\(bpm) BPM") }

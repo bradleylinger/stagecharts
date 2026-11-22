@@ -176,3 +176,18 @@ extension BandSync: MCNearbyServiceBrowserDelegate {
         Task { @MainActor in self.peersChanged() }
     }
 }
+
+/// Capo chosen on a following device. The leader's key comes through, but its capo doesn't:
+/// each band member sets their own, kept on that device only (not synced, not overwritten by the leader).
+enum FollowerCapo {
+    static let storageKey = "followerCapos"
+    static func all(_ raw: String) -> [String: Int] {
+        (try? JSONDecoder().decode([String: Int].self, from: Data(raw.utf8))) ?? [:]
+    }
+    static func capo(for songID: String, in raw: String) -> Int { all(raw)[songID] ?? 0 }
+    static func setting(_ v: Int, for songID: String, in raw: String) -> String {
+        var d = all(raw)
+        d[songID] = v == 0 ? nil : v
+        return String(data: (try? JSONEncoder().encode(d)) ?? Data("{}".utf8), encoding: .utf8) ?? "{}"
+    }
+}

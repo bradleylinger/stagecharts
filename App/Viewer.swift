@@ -6,6 +6,7 @@ import ChordProKit
 struct ViewerRootView: View {
     @EnvironmentObject var library: SongLibrary
     @EnvironmentObject var band: BandSync
+    @AppStorage(FollowerCapo.storageKey) private var followerCaposRaw = ""
     @EnvironmentObject var midi: MIDIController
     @AppStorage("activeSetID") private var activeSetRaw = ""
     @State private var selection: String?
@@ -110,7 +111,7 @@ struct ViewerRootView: View {
     private func keyText(_ file: SongFile, _ item: SetItem?) -> String? {
         guard let k = file.song.key else { return nil }
         let s = library.settings(for: file.id)
-        let capo = item?.capo ?? s.capo
+        let capo = band.role == .follow ? FollowerCapo.capo(for: file.id, in: followerCaposRaw) : (item?.capo ?? s.capo)
         var parts = [k.transposed(by: item?.semitones ?? s.semitones).description]
         if capo > 0 { parts.append("Capo \(capo)") }
         if let bpm = library.tempo(for: file) { parts.append("\(bpm) BPM") }
@@ -140,6 +141,8 @@ struct ViewerRootView: View {
 /// Chart screen for the band viewer (iPadOS 15-compatible scrolling).
 struct ViewerSongView: View {
     @EnvironmentObject var library: SongLibrary
+    @EnvironmentObject var band: BandSync
+    @AppStorage(FollowerCapo.storageKey) private var followerCaposRaw = ""
     @EnvironmentObject var midi: MIDIController
     @AppStorage("chartStyle") private var styleRaw = ChartStyle.classic.rawValue
     @AppStorage("chartColumns") private var columnsRaw = ChartColumns.auto.rawValue
@@ -156,7 +159,9 @@ struct ViewerSongView: View {
     private var settings: SongSettings { library.settings(for: file.id) }
     private var item: SetItem? { library.setList(id: setID)?.items.first { $0.id == itemID } }
     private var semitones: Int { item?.semitones ?? settings.semitones }
-    private var capo: Int { item?.capo ?? settings.capo }
+    private var following: Bool { band.role == .follow }
+    /// Following: this device's own capo (the leader's isn't applied).
+    private var capo: Int { following ? FollowerCapo.capo(for: file.id, in: followerCaposRaw) : (item?.capo ?? settings.capo) }
     private var size: CGFloat { 22 * settings.fontScale }
     private var rendered: RenderedSong { RenderedSong(file: file, semitones: semitones, capo: capo, tempo: library.settings(for: file.id).tempo) }
 
@@ -287,7 +292,8 @@ struct ViewerSongView: View {
         guard let set = library.setList(id: setID), let i = set.items.firstIndex(where: { $0.id == itemID }),
               i + 1 < set.items.count, let f = library.song(id: set.items[i + 1].songID) else { return nil }
         let it = set.items[i + 1], s = library.settings(for: f.id)
-        return (i + 2, set.items.count, RenderedSong(file: f, semitones: it.semitones ?? s.semitones, capo: it.capo ?? s.capo, tempo: library.settings(for: f.id).tempo))
+        return (i + 2, set.items.count, RenderedSong(file: f, semitones: it.semitones ?? s.semitones,
+                                                          capo: following ? FollowerCapo.capo(for: f.id, in: followerCaposRaw) : (it.capo ?? s.capo), tempo: library.settings(for: f.id).tempo))
     }
 
     // MARK: Key / capo / display
@@ -298,6 +304,7 @@ struct ViewerSongView: View {
     }
 
     private func setCapo(_ v: Int) {
+        if following { followerCaposRaw = FollowerCapo.setting(v, for: file.id, in: followerCaposRaw); return }
         if let setID, let itemID { library.updateItem(set: setID, item: itemID) { $0.capo = v } }
         else { library.update(file.id) { $0.capo = v } }
     }

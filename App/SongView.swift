@@ -40,7 +40,10 @@ struct SongView: View {
     private var settings: SongSettings { library.settings(for: file.id) }
     private var item: SetItem? { library.setList(id: setID)?.items.first { $0.id == itemID } }
     private var semitones: Int { item?.semitones ?? settings.semitones }
-    private var capo: Int { item?.capo ?? settings.capo }
+    @AppStorage(FollowerCapo.storageKey) private var followerCaposRaw = ""
+    private var following: Bool { band.role == .follow }
+    /// Following: this device's own capo (the leader's isn't applied). Otherwise the set item's / song's.
+    private var capo: Int { following ? FollowerCapo.capo(for: file.id, in: followerCaposRaw) : (item?.capo ?? settings.capo) }
     private var originalKey: Key? { file.song.key }
     /// The key the band hears.
     private var currentKey: Key? { originalKey?.transposed(by: semitones) }
@@ -60,6 +63,7 @@ struct SongView: View {
     }
 
     private func setCapo(_ v: Int) {
+        if following { followerCaposRaw = FollowerCapo.setting(v, for: file.id, in: followerCaposRaw); return }
         if let setID, let itemID { library.updateItem(set: setID, item: itemID) { $0.capo = v } }
         else { library.update(file.id) { $0.capo = v } }
     }
@@ -286,7 +290,8 @@ struct SongView: View {
         let item = set.items[i + 1]
         guard let f = library.song(id: item.songID) else { return nil }
         let s = library.settings(for: f.id)
-        return (i + 2, set.items.count, RenderedSong(file: f, semitones: item.semitones ?? s.semitones, capo: item.capo ?? s.capo, tempo: library.settings(for: f.id).tempo))
+        return (i + 2, set.items.count, RenderedSong(file: f, semitones: item.semitones ?? s.semitones,
+                                                       capo: following ? FollowerCapo.capo(for: f.id, in: followerCaposRaw) : (item.capo ?? s.capo), tempo: library.settings(for: f.id).tempo))
     }
 
     // MARK: Actions (shared by MIDI, keyboard and toolbar)

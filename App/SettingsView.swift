@@ -38,7 +38,8 @@ struct SettingsView: View {
                 songsSection
                 monitorSection
                 GoogleDriveSection()
-                librarySection
+                // The folder option is for iCloud Drive / Dropbox users; hidden while Google sync is on.
+                if !googleAuth.isSignedIn { librarySection }
                 Section("Display") {
                     Picker("Chart style", selection: $styleRaw) {
                         ForEach(ChartStyle.allCases) { Text($0.title).tag($0.rawValue) }
@@ -69,7 +70,7 @@ struct SettingsView: View {
     private var librarySection: some View {
         Section {
             LabeledContent("Location", value: library.locationName)
-            Button(library.usesCustomFolder ? "Choose a different folder…" : "Use a shared folder (Google Drive)…") {
+            Button(library.usesCustomFolder ? "Choose a different folder…" : "Use a shared folder (iCloud Drive, Dropbox…)…") {
                 pickingFolder = true
             }
             if library.usesCustomFolder {
@@ -80,7 +81,7 @@ struct SettingsView: View {
         } header: {
             Text("Library folder (advanced)")
         } footer: {
-            Text("Keep the library in a folder of your choice (e.g. iCloud Drive, or Drive for Desktop on the Mac). For Google Drive on iPad, use “Sign in with Google” above instead — the Google Drive app doesn't let other apps open folders.")
+            Text("Keep the library in a folder synced by another service, such as iCloud Drive or Dropbox. For Google Drive, use “Sign in with Google” above instead.")
         }
         .fileImporter(isPresented: $pickingFolder, allowedContentTypes: [.folder]) { result in
             switch result {

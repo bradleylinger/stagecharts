@@ -156,6 +156,9 @@ struct SettingsView: View {
             }
             .pickerStyle(.segmented)
             LabeledContent("Status", value: band.statusText)
+            if band.role == .follow {
+                Toggle("Follow the leader's scrolling", isOn: $band.followsScrolling)
+            }
             if band.role == .lead && !band.peers.isEmpty {
                 ForEach(band.peers, id: \.self) { Label($0, systemImage: "ipad") }
             }

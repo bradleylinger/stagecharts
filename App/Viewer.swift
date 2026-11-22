@@ -34,6 +34,9 @@ struct ViewerRootView: View {
                                 .foregroundColor(band.role == .follow && !band.peers.isEmpty ? .green : .secondary)
                         }
                     }
+                    if band.role == .follow {
+                        Toggle("Follow the leader's scrolling", isOn: $band.followsScrolling)
+                    }
                 }
                 GoogleDriveSection()
                 Section {

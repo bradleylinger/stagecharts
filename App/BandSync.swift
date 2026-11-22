@@ -27,6 +27,10 @@ final class BandSync: NSObject, ObservableObject {
     @Published var role: Role = .off { didSet { if role != oldValue { restart() } } }
     @Published private(set) var peers: [String] = []
     @Published private(set) var leaderName: String?
+    /// Follower: also follow the leader's scrolling (off = scroll yourself; songs still follow).
+    @Published var followsScrolling: Bool = UserDefaults.standard.object(forKey: "followScrolling") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(followsScrolling, forKey: "followScrolling") }
+    }
 
     // Follower callbacks (wired by ContentView)
     var onSet: ((SetBundle) -> Void)?
@@ -123,7 +127,7 @@ final class BandSync: NSObject, ObservableObject {
         switch message {
         case .set(let bundle): onSet?(bundle)
         case .select(let position, let songID): onSelect?(position, songID)
-        case .scroll(let f): onScroll?(f)
+        case .scroll(let f): if followsScrolling { onScroll?(f) }
         case .song(let s): onSong?(s)
         }
     }

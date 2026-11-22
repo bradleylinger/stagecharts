@@ -19,7 +19,9 @@ struct SongView: View {
     @State private var metrics = ScrollMetrics()
     @State private var editingNote: EditingNote?
     @State private var swipeOffset: CGFloat = 0
-    @State private var chromeHidden = false     // iOS: tap the chart to hide / show the top bar
+    @State private var chromeHidden = false
+    @State private var showAIConvert = false
+    @State private var showTransition = false     // iOS: tap the chart to hide / show the top bar
     @State private var editingInfo = false
 
     struct EditingNote: Identifiable {
@@ -90,7 +92,24 @@ struct SongView: View {
     }
 
     var body: some View {
-        if let pdf = file.pdfURL { pdfBody(pdf) } else { textBody }
+        Group {
+            if let pdf = file.pdfURL { pdfBody(pdf) } else { textBody }
+        }
+        .sheet(isPresented: $showAIConvert) { AIConvertSheet(source: .song(file)) }
+        .sheet(isPresented: $showTransition) {
+            if let (a, b) = transitionPair { TransitionSheet(from: a, to: b, capo: capo) }
+        }
+    }
+
+    /// This song and the next one in the set, both in the sounding key (no capo), for transition ideas.
+    private var transitionPair: (RenderedSong, RenderedSong)? {
+        guard let set = library.setList(id: setID),
+              let i = set.items.firstIndex(where: { $0.id == itemID }), i + 1 < set.items.count else { return nil }
+        let item = set.items[i + 1]
+        guard let f = library.song(id: item.songID), file.song.source.isTransposable, f.song.source.isTransposable else { return nil }
+        let s = library.settings(for: f.id)
+        return (RenderedSong(file: file, semitones: semitones, capo: 0, tempo: library.settings(for: file.id).tempo),
+                RenderedSong(file: f, semitones: item.semitones ?? s.semitones, capo: 0, tempo: s.tempo))
     }
 
     /// PDF-only songs: the original document, with a compact title bar.
@@ -98,7 +117,9 @@ struct SongView: View {
         VStack(spacing: 0) {
             PDFSongBar(file: file, key: currentKey, tempo: library.tempo(for: file), capo: capo,
                        notes: settings.notes, onTapNote: { editingNote = EditingNote(note: $0, isNew: false) },
-                       onGetFromSongSelect: { importer.open(song: file) })
+                       onGetFromSongSelect: { importer.open(song: file) },
+                       onConvertWithAI: file.pdfURL.map { u in ["pdf", "jpg", "jpeg", "png", "heic", "gif", "webp", "tif", "tiff"]
+                           .contains(u.pathExtension.lowercased()) } == true ? { showAIConvert = true } : nil)
             Divider()
             PDFKitView(url: url, command: midi.command)
         }
@@ -106,9 +127,9 @@ struct SongView: View {
         .simultaneousGesture(songSwipe)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if let next = nextUp {
-                NextUpBar(position: next.position, total: next.total, next: next.song, size: size, style: style) {
-                    midi.sendLocal(.nextSong)
-                }
+                NextUpBar(position: next.position, total: next.total, next: next.song, size: size, style: style,
+                          onTap: { midi.sendLocal(.nextSong) },
+                          onTransition: transitionPair == nil ? nil : { showTransition = true })
             }
         }
         .sheet(item: $editingNote) { e in
@@ -181,9 +202,9 @@ struct SongView: View {
         .simultaneousGesture(songSwipe)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if let next = nextUp {
-                NextUpBar(position: next.position, total: next.total, next: next.song, size: size, style: style) {
-                    midi.sendLocal(.nextSong)
-                }
+                NextUpBar(position: next.position, total: next.total, next: next.song, size: size, style: style,
+                          onTap: { midi.sendLocal(.nextSong) },
+                          onTransition: transitionPair == nil ? nil : { showTransition = true })
             }
         }
         .sheet(isPresented: $editingInfo) {

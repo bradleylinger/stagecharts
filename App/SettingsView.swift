@@ -43,6 +43,7 @@ struct SettingsView: View {
                 songsSection
                 monitorSection
                 GoogleDriveSection()
+                AISettingsSection()
                 songSelectSection
                 if #available(iOS 16.0, *) {
                 Section {

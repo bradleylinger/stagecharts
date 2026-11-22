@@ -64,7 +64,7 @@ public struct ChordProSong: Equatable {
     public var source: ChartSource {
         if meta["x_pdf"] != nil { return .pdfDocument }
         if meta["x_source"] == "onsong-songselect" { return .onSongSongSelect }
-        if meta["x_source"] == "songselect-pdf" || meta["x_source"] == "chord-chart" { return .convertedPDF }
+        if meta["x_source"] == "songselect-pdf" || meta["x_source"] == "chord-chart" || meta["x_source"] == "ai" { return .convertedPDF }
         if meta["ccli_license"] != nil || (meta["footer"] ?? "").contains("SongSelect") { return .songSelectChordPro }
         // Converted before the marker existed: SongSelect metadata but no ChordPro license/footer lines.
         if ccli != nil && copyright != nil { return .convertedPDF }

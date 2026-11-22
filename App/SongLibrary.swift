@@ -319,6 +319,25 @@ final class SongLibrary: ObservableObject {
         settings(for: file.id).tempo ?? file.song.tempo.flatMap { Int($0) }
     }
 
+    /// Saves a chart converted by AI: replaces `existing` (or a lower-ranked song with the same CCLI #)
+    /// in place, keeping set lists, keys, capos, notes and MIDI; otherwise adds it. Returns the song id.
+    @discardableResult
+    func saveAIChart(_ raw: String, replacing existing: SongFile?) throws -> String {
+        let incoming = ChordProSong(raw)
+        let target = existing ?? incoming.ccli.flatMap { c in
+            songs.first { $0.song.ccli == c && $0.song.source.rank < incoming.source.rank }
+        }
+        if let target {
+            try upgrade(target, to: raw)
+            reload()
+            return target.id
+        }
+        let name = uniqueFileName(incoming.title.isEmpty ? "Untitled" : incoming.title, ext: "chordpro")
+        try write(raw, to: folder.appendingPathComponent(name))
+        reload()
+        return name
+    }
+
     /// Replaces a converted-from-PDF chart with a ChordPro chart, keeping the same file (so set lists,
     /// MIDI triggers and notes still point at it) and the same sounding keys everywhere.
     private func upgrade(_ existing: SongFile, to raw: String) throws {

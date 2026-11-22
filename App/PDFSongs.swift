@@ -66,6 +66,7 @@ struct PDFSongBar: View {
     let notes: [SongNote]
     var onTapNote: (SongNote) -> Void = { _ in }
     var onGetFromSongSelect: (() -> Void)? = nil
+    var onConvertWithAI: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -80,6 +81,11 @@ struct PDFSongBar: View {
                 }
                 FormatTag(song: file.song)
                 Spacer()
+                if let onConvertWithAI {
+                    Button(action: onConvertWithAI) { Label("Convert with AI", systemImage: "sparkles") }
+                        .font(.caption)
+                        .help("Have Claude turn this document into a transposable chart")
+                }
                 if let onGetFromSongSelect, file.song.ccli != nil {
                     Button(action: onGetFromSongSelect) { Label("Get transposable version from SongSelect", systemImage: "arrow.up.circle") }
                         .font(.caption)

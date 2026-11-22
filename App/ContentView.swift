@@ -18,6 +18,8 @@ struct ContentView: View {
 
     enum FormatFilter: String, CaseIterable { case all = "All", chordPro = "ChordPro", converted = "Converted", documents = "PDF only" }
     @State private var importing = false
+    @State private var pickingAIChart = false
+    @State private var aiChartURL: URL?
     @State private var newSetName = ""
     @State private var showNewSet = false
     @State private var pendingSongForNewSet: String?
@@ -55,6 +57,12 @@ struct ContentView: View {
                 sourcePicker
                 if let set = activeSet { setListView(set) } else { libraryView }
             }
+            .fileImporter(isPresented: $pickingAIChart, allowedContentTypes: [.pdf, .image]) { result in
+                if case .success(let url) = result { aiChartURL = url }
+            }
+            .sheet(item: $aiChartURL) { url in
+                AIConvertSheet(source: .file(url)) { id in activeSetRaw = ""; selection = id }
+            }
             .navigationSplitViewColumnWidth(min: 260, ideal: 320)
             .navigationTitle(activeSet?.name ?? "Library")
             .toolbar {
@@ -62,6 +70,7 @@ struct ContentView: View {
                     Menu {
                         Button("Import songs…", systemImage: "square.and.arrow.down") { importing = true }
                         Button("Get songs from SongSelect…", systemImage: "globe") { importer.browserURL = SongSelect.home }
+                        Button("Convert a chart with AI…", systemImage: "sparkles") { pickingAIChart = true }
                         Button("Upgrade from SongSelect (\(importer.upgradeCandidates.count))…", systemImage: "arrow.up.circle") {
                             showUpgradeQueue = true
                         }

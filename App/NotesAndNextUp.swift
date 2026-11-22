@@ -106,6 +106,7 @@ struct NextUpBar: View {
     let size: CGFloat
     let style: ChartStyle
     var onTap: () -> Void
+    var onTransition: (() -> Void)? = nil
 
     /// First chords of the song in order (consecutive repeats kept, like a chart's intro), max 8.
     static func openingChords(_ song: ChordProSong, limit: Int = 8) -> [String] {
@@ -125,6 +126,7 @@ struct NextUpBar: View {
 
     var body: some View {
         let s = size * 0.8
+        HStack(spacing: 0) {
         Button(action: onTap) {
             HStack(spacing: s * 0.8) {
                 Text("NEXT")
@@ -167,6 +169,19 @@ struct NextUpBar: View {
         }
         .buttonStyle(.plain)
         .help("Go to the next song")
+        if let onTransition {
+            Button(action: onTransition) {
+                Image(systemName: "sparkles").font(.system(size: s)).foregroundStyle(style.chord)
+                    .padding(.horizontal, s * 0.9).padding(.vertical, s * 0.55)
+                    .frame(maxHeight: .infinity)
+                    .background(style.background)
+                    .overlay(alignment: .top) { Rectangle().fill(style.secondary.opacity(0.4)).frame(height: 1) }
+            }
+            .buttonStyle(.plain)
+            .help("Transition ideas into the next song (AI)")
+        }
+        }
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 

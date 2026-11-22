@@ -14,6 +14,9 @@ struct SettingsView: View {
     @AppStorage("chartColumns") private var columnsRaw = ChartColumns.auto.rawValue
     var showsDoneButton = true
     @State private var pickingFolder = false
+    @State private var pickingSong = false
+    @State private var songSearch = ""
+    @State private var pendingSongRow: String?
     @State private var folderError: String?
 
     var body: some View {
@@ -210,54 +213,86 @@ struct SettingsView: View {
     private var songsSection: some View {
         Section {
             Toggle("Program Change selects song by list position", isOn: $midi.mapping.programChangeSelectsSong)
-            ForEach(library.songs) { file in
-                let trigger = library.settings(for: file.id).midiTrigger
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(file.song.title)
-                        Text(trigger?.label(showChannel: omni) ?? "Not mapped")
-                            .font(.caption.monospaced())
-                            .foregroundStyle(trigger == nil ? Color.secondary : Color.chord)
+            let mapped = library.songs.filter {
+                library.settings(for: $0.id).midiTrigger != nil || midi.learning == .song(id: $0.id) || pendingSongRow == $0.id
+            }
+            if mapped.isEmpty {
+                Text("No songs have their own MIDI message. With set lists, CC \(midi.mapping.setSlotFirstCC)+ usually covers it.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            ForEach(mapped) { file in songMappingRow(file) }
+            Button("Assign a song…", systemImage: "plus.circle") { pickingSong = true }
+        } header: {
+            Text("Songs with their own MIDI message")
+        } footer: {
+            Text("For songs Ableton or Playback always select with the same message (e.g. a Playback song-start cue). Learn: tap, then fire the cue. Any CC, note or Program Change works.")
+        }
+        .sheet(isPresented: $pickingSong) { songPicker }
+    }
+
+    private func songMappingRow(_ file: SongFile) -> some View {
+        let trigger = library.settings(for: file.id).midiTrigger
+        return HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(file.song.title)
+                Text(trigger?.label(showChannel: omni) ?? (midi.learning == .song(id: file.id) ? "Waiting for MIDI…" : "Not mapped"))
+                    .font(.caption.monospaced())
+                    .foregroundStyle(trigger == nil ? Color.secondary : Color.chord)
+            }
+            Spacer()
+            Button { library.setTrigger(nil, for: file.id) } label: { Image(systemName: "xmark.circle.fill") }
+                .buttonStyle(.borderless)
+                .foregroundStyle(.secondary)
+                .help("Remove this song's MIDI message")
+            Menu {
+                Menu("Control Change") {
+                    ForEach(0...127, id: \.self) { n in
+                        Button(MIDITrigger(.controlChange, n).description) { setSong(file.id, .controlChange, n) }
                     }
-                    Spacer()
-                    if trigger != nil {
-                        Button { library.setTrigger(nil, for: file.id) } label: {
-                            Image(systemName: "xmark.circle.fill")
-                        }
-                        .buttonStyle(.borderless)
-                        .foregroundStyle(.secondary)
-                        .help("Clear")
+                }
+                Menu("Note") {
+                    ForEach(0...127, id: \.self) { n in
+                        Button("Note \(MIDITrigger.noteName(n))") { setSong(file.id, .note, n) }
                     }
-                    Menu {
-                        Menu("Control Change") {
-                            ForEach(0...127, id: \.self) { n in
-                                Button(MIDITrigger(.controlChange, n).description) { setSong(file.id, .controlChange, n) }
-                            }
-                        }
-                        Menu("Note") {
-                            ForEach(0...127, id: \.self) { n in
-                                Button("Note \(MIDITrigger.noteName(n))") { setSong(file.id, .note, n) }
-                            }
-                        }
-                        Menu("Program Change") {
-                            ForEach(1...128, id: \.self) { n in
-                                Button("Program \(n)") { setSong(file.id, .programChange, n) }
-                            }
-                        }
-                    } label: {
-                        Image(systemName: "slider.horizontal.3")
+                }
+                Menu("Program Change") {
+                    ForEach(1...128, id: \.self) { n in
+                        Button("Program \(n)") { setSong(file.id, .programChange, n) }
                     }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
-                    .help("Choose a message manually")
-                    learnButton(.song(id: file.id))
+                }
+            } label: { Image(systemName: "slider.horizontal.3") }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            learnButton(.song(id: file.id))
+        }
+    }
+
+    /// Searchable list of all songs; choosing one starts Learn for it.
+    private var songPicker: some View {
+        NavigationStack {
+            List(library.songs.filter { songSearch.isEmpty || $0.song.title.localizedCaseInsensitiveContains(songSearch) }) { file in
+                Button {
+                    pickingSong = false
+                    songSearch = ""
+                    midi.startLearning(.song(id: file.id))
+                    pendingSongRow = file.id
+                } label: {
+                    HStack {
+                        Text(file.song.title).foregroundStyle(.primary)
+                        Spacer()
+                        if let t = library.settings(for: file.id).midiTrigger {
+                            Text(t.label(showChannel: omni)).font(.caption.monospaced()).foregroundStyle(.secondary)
+                        }
+                    }
                 }
             }
-        } header: {
-            Text("Songs")
-        } footer: {
-            Text("Learn: tap, then fire the song's clip in Ableton. Any CC, note or Program Change can select a song (e.g. CC 101 → first song). Songs without their own message can still be picked by Program Change number = position in the list.")
+            .searchable(text: $songSearch, prompt: "Search songs")
+            .navigationTitle("Assign MIDI to a song")
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { pickingSong = false } } }
         }
+        #if os(macOS)
+        .frame(minWidth: 420, minHeight: 480)
+        #endif
     }
 
     private func setSong(_ id: String, _ kind: MIDITrigger.Kind, _ number: Int) {

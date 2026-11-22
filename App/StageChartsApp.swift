@@ -49,10 +49,12 @@ struct StageChartsApp: App {
         if let files = ProcessInfo.processInfo.environment["STAGECHARTS_IMPORT"] {
             library.importFiles(files.split(separator: "|").map { URL(fileURLWithPath: String($0)) })
             print("IMPORT RESULT:", library.lastError ?? "ok")
+            UserDefaults.standard.synchronize()
             exit(0)
         }
         if let folder = ProcessInfo.processInfo.environment["STAGECHARTS_LIBRARY_FOLDER"] {
             if folder == "device" { library.useDeviceStorage() } else { try? library.useFolder(URL(fileURLWithPath: folder)) }
+            UserDefaults.standard.synchronize()
             exit(0)
         }
         guard let out = ProcessInfo.processInfo.environment["STAGECHARTS_EXPORT_PDF"],

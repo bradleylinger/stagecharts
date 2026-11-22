@@ -80,7 +80,8 @@ final class SongLibrary: ObservableObject {
         base = Self.deviceBase
         if let data = UserDefaults.standard.data(forKey: Self.bookmarkKey) {
             var stale = false
-            if let url = try? URL(resolvingBookmarkData: data, bookmarkDataIsStale: &stale) {
+            if let url = try? URL(resolvingBookmarkData: data, bookmarkDataIsStale: &stale),
+               FileManager.default.fileExists(atPath: url.path) {
                 _ = url.startAccessingSecurityScopedResource()     // held for the app's lifetime
                 base = url
                 usesCustomFolder = true
@@ -188,7 +189,7 @@ final class SongLibrary: ObservableObject {
     /// Imports charts. A SongSelect ChordPro file for a song you already have from a PDF (same CCLI #)
     /// upgrades that song in place; a PDF never replaces a ChordPro version.
     func importFiles(_ urls: [URL]) {
-        var failures: [String] = [], upgraded: [String] = [], keptChordPro: [String] = []
+        var failures: [String] = [], upgraded: [String] = [], keptChordPro: [String] = [], alreadyHave: [String] = []
         for url in urls {
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
@@ -200,6 +201,10 @@ final class SongLibrary: ObservableObject {
                 var name: String
                 if ext == "pdf" {
                     raw = try PDFChordSheetImporter.chordPro(fromPDF: url)
+                    guard !ChordProSong(raw).sections.isEmpty else {
+                        throw NSError(domain: "StageCharts", code: 1, userInfo: [NSLocalizedDescriptionKey:
+                            "unsupported PDF layout – re-download it from SongSelect"])
+                    }
                     let title = ChordProSong(raw).title
                     name = title.components(separatedBy: CharacterSet(charactersIn: "/\\:?%*|\"<>")).joined(separator: "-") + ".chordpro"
                     keepOriginalPDF(url)
@@ -221,8 +226,9 @@ final class SongLibrary: ObservableObject {
                     case (true, false):                     // never downgrade ChordPro → PDF
                         keptChordPro.append(incoming.title)
                         continue
-                    default:                                // same kind: refresh the existing file
-                        name = existing.id
+                    default:                                // same kind: keep what's in the library
+                        if existing.raw != raw { alreadyHave.append(incoming.title) }
+                        continue
                     }
                 }
                 try write(raw, to: folder.appendingPathComponent(name))
@@ -234,6 +240,7 @@ final class SongLibrary: ObservableObject {
         var report: [String] = []
         if !upgraded.isEmpty { report.append("Upgraded to ChordPro (set lists, notes, MIDI and keys kept): " + upgraded.joined(separator: ", ")) }
         if !keptChordPro.isEmpty { report.append("Kept your ChordPro version of: " + keptChordPro.joined(separator: ", ")) }
+        if !alreadyHave.isEmpty { report.append("Already in your library (kept yours): " + alreadyHave.joined(separator: ", ")) }
         if !failures.isEmpty { report.append("Couldn't import: " + failures.joined(separator: ", ")) }
         lastError = report.isEmpty ? nil : report.joined(separator: "\n\n")
     }
@@ -274,7 +281,10 @@ final class SongLibrary: ObservableObject {
 
     private func write(_ text: String, to url: URL) throws {
         guard let data = text.data(using: .utf8) else { throw CocoaError(.fileWriteInapplicableStringEncoding) }
-        Self.coordinatedWrite(data, to: url)
+        guard Self.coordinatedWrite(data, to: url) else {
+            throw NSError(domain: "StageCharts", code: 2, userInfo: [NSLocalizedDescriptionKey:
+                "couldn't save to \(url.deletingLastPathComponent().path) – is the library folder available?"])
+        }
     }
 
     /// Keeps a copy of imported PDFs next to the library (fallback / reference).
@@ -391,12 +401,15 @@ final class SongLibrary: ObservableObject {
         return data
     }
 
-    static func coordinatedWrite(_ data: Data, to url: URL) {
+    @discardableResult
+    static func coordinatedWrite(_ data: Data, to url: URL) -> Bool {
         var error: NSError?
+        var ok = false
         NSFileCoordinator().coordinate(writingItemAt: url, options: .forReplacing, error: &error) { u in
-            try? data.write(to: u, options: .atomic)
+            ok = (try? data.write(to: u, options: .atomic)) != nil
         }
-        if error != nil { try? data.write(to: url, options: .atomic) }
+        if !ok { ok = (try? data.write(to: url, options: .atomic)) != nil }
+        return ok
     }
 
     static func readText(_ url: URL) -> String? {

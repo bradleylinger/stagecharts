@@ -80,12 +80,12 @@ struct SongView: View {
     }
     private var size: CGFloat { (isPhone ? 15 : 22) * settings.fontScale }
 
-    /// Room for the status bar + top bar above the title (the bar overlays the chart, so the
-    /// chart doesn't jump when it's hidden or shown).
+    /// Room above the title: status bar + top bar while the bar shows; just the status bar area
+    /// (camera housing) when it's hidden, so the music uses that space.
     private var topBarSpace: CGFloat {
         #if os(iOS)
         let top = UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }.first?.safeAreaInsets.top ?? 20
-        return top + 50
+        return chromeHidden ? top : top + 50      // bar hidden: the chart moves up into its space
         #else
         return 0
         #endif

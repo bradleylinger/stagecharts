@@ -73,8 +73,10 @@ struct SettingsView: View {
 
     private var songSelectSection: some View {
         Section {
-            Button("Open SongSelect…") { importer.browserURL = SongSelect.home }
-            Button("Upgrade queue: \(importer.upgradeCandidates.count) songs need a transposable chart") { importer.startQueue() }
+            Button("Open SongSelect…") { afterClosingSettings { importer.browserURL = SongSelect.home } }
+            Button("Upgrade queue: \(importer.upgradeCandidates.count) songs need a transposable chart") {
+                afterClosingSettings { importer.startQueue() }
+            }
                 .disabled(importer.upgradeCandidates.isEmpty)
             #if os(macOS)
             Toggle("Import SongSelect downloads automatically", isOn: Binding(get: { autoImport }, set: { autoImport = $0; importer.setWatching($0) }))
@@ -93,6 +95,18 @@ struct SettingsView: View {
         } footer: {
             Text("Download a chord sheet (PDF or ChordPro) and StageCharts imports it: songs you already have are upgraded in place (set lists, keys, capos, notes and MIDI kept), new ones are added. On the Mac it can also watch your downloads folder for files saved from your web browser.")
         }
+    }
+
+    /// On iPad, Settings is a sheet: the SongSelect browser (presented by the main screen) can only
+    /// appear once Settings is closed. On the Mac, Settings is its own window, so open straight away.
+    private func afterClosingSettings(_ action: @escaping () -> Void) {
+        #if os(iOS)
+        midi.learning = nil
+        dismiss()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: action)
+        #else
+        action()
+        #endif
     }
 
     private var librarySection: some View {

@@ -245,8 +245,11 @@ final class SongLibrary: ObservableObject {
     /// Copies picked files into the library (replacing same-named files).
     /// Imports charts. A SongSelect ChordPro file for a song you already have from a PDF (same CCLI #)
     /// upgrades that song in place; a PDF never replaces a ChordPro version.
-    func importFiles(_ urls: [URL]) {
+    /// Returns a short summary. `silent` = don't show the import alert (automatic imports use a toast).
+    @discardableResult
+    func importFiles(_ urls: [URL], silent: Bool = false) -> String? {
         var failures: [String] = [], upgraded: [String] = [], keptChordPro: [String] = [], alreadyHave: [String] = []
+        var added: [String] = []
         for url in urls {
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
@@ -287,6 +290,7 @@ final class SongLibrary: ObservableObject {
                     continue
                 }
                 try write(raw, to: folder.appendingPathComponent(name))
+                added.append(incoming.title)
             } catch {
                 failures.append("\(url.lastPathComponent) (\(error.localizedDescription))")
             }
@@ -297,7 +301,9 @@ final class SongLibrary: ObservableObject {
         if !keptChordPro.isEmpty { report.append("Kept your better version of: " + keptChordPro.joined(separator: ", ")) }
         if !alreadyHave.isEmpty { report.append("Already in your library (kept yours): " + alreadyHave.joined(separator: ", ")) }
         if !failures.isEmpty { report.append("Couldn't import: " + failures.joined(separator: ", ")) }
-        lastError = report.isEmpty ? nil : report.joined(separator: "\n\n")
+        if !silent { lastError = report.isEmpty ? nil : report.joined(separator: "\n\n") }
+        if !added.isEmpty { report.insert("Added: " + added.joined(separator: ", "), at: 0) }
+        return report.isEmpty ? nil : report.joined(separator: "\n")
     }
 
     /// Our BPM for a song (nil = chart tempo); the time signature is saved in the chart itself.

@@ -11,6 +11,9 @@ struct SettingsView: View {
     @EnvironmentObject var band: BandSync
     @EnvironmentObject var googleAuth: GoogleAuth
     @EnvironmentObject var drive: GoogleDriveSync
+    @EnvironmentObject var importer: AutoImporter
+    @AppStorage("autoImportDownloads") private var autoImport = false
+    @AppStorage("songSelectInBrowser") private var songSelectInBrowser = false
     @Environment(\.dismiss) private var dismiss
     @AppStorage("chartStyle") private var styleRaw = ChartStyle.classic.rawValue
     @AppStorage("chartColumns") private var columnsRaw = ChartColumns.auto.rawValue
@@ -38,6 +41,7 @@ struct SettingsView: View {
                 songsSection
                 monitorSection
                 GoogleDriveSection()
+                songSelectSection
                 // The folder option is for iCloud Drive / Dropbox users; hidden while Google sync is on.
                 if !googleAuth.isSignedIn { librarySection }
                 Section("Display") {
@@ -66,6 +70,30 @@ struct SettingsView: View {
     }
 
     // MARK: Sections
+
+    private var songSelectSection: some View {
+        Section {
+            Button("Open SongSelect…") { importer.browserURL = SongSelect.home }
+            Button("Upgrade queue: \(importer.upgradeCandidates.count) songs need a transposable chart") { importer.startQueue() }
+                .disabled(importer.upgradeCandidates.isEmpty)
+            #if os(macOS)
+            Toggle("Import SongSelect downloads automatically", isOn: Binding(get: { autoImport }, set: { autoImport = $0; importer.setWatching($0) }))
+            if autoImport {
+                LabeledContent("Watching", value: importer.watchFolder.path)
+                Button("Choose downloads folder…") {
+                    let p = NSOpenPanel(); p.canChooseDirectories = true; p.canChooseFiles = false
+                    p.directoryURL = importer.watchFolder
+                    if p.runModal() == .OK, let u = p.url { importer.setWatchFolder(u) }
+                }
+                Toggle("Open SongSelect pages in my web browser (e.g. Chrome)", isOn: $songSelectInBrowser)
+            }
+            #endif
+        } header: {
+            Text("SongSelect")
+        } footer: {
+            Text("Download a chord sheet (PDF or ChordPro) and StageCharts imports it: songs you already have are upgraded in place (set lists, keys, capos, notes and MIDI kept), new ones are added. On the Mac it can also watch your downloads folder for files saved from your web browser.")
+        }
+    }
 
     private var librarySection: some View {
         Section {

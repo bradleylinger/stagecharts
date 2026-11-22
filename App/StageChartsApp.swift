@@ -13,12 +13,14 @@ struct StageChartsApp: App {
     @StateObject private var library: SongLibrary
     @StateObject private var googleAuth: GoogleAuth
     @StateObject private var drive: GoogleDriveSync
+    @StateObject private var importer: AutoImporter
 
     init() {
         let lib = SongLibrary(), auth = GoogleAuth()
         _library = StateObject(wrappedValue: lib)
         _googleAuth = StateObject(wrappedValue: auth)
         _drive = StateObject(wrappedValue: GoogleDriveSync(auth: auth, library: lib))
+        _importer = StateObject(wrappedValue: AutoImporter(library: lib))
     }
     @StateObject private var midi = MIDIController()
     @StateObject private var band = BandSync()
@@ -36,6 +38,7 @@ struct StageChartsApp: App {
                 .environmentObject(band)
                 .environmentObject(googleAuth)
                 .environmentObject(drive)
+                .environmentObject(importer)
                 #if os(iOS)
                 .onAppear { UIApplication.shared.isIdleTimerDisabled = true }   // keep screen on stage
                 #endif
@@ -66,6 +69,7 @@ struct StageChartsApp: App {
                 .environmentObject(library)
                 .environmentObject(googleAuth)
                 .environmentObject(drive)
+                .environmentObject(importer)
                 .environmentObject(midi)
                 .environmentObject(band)
                 .preferredColorScheme((ChartStyle(rawValue: styleRaw) ?? .classic).colorScheme)

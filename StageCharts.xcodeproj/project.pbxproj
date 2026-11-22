@@ -21,6 +21,7 @@
 		4FED3463389CD5C9545A839D /* ChordProKit in Frameworks */ = {isa = PBXBuildFile; productRef = C176A684DB57B53C84E15EA8 /* ChordProKit */; };
 		54D3C50C60282C55AC042EDF /* I'm So Blessed-chords-D.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 9DD48E38F5779A4CEB59D3CB /* I'm So Blessed-chords-D.pdf */; };
 		70260258E1BF55CC5785D8B7 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60880C5D22BD5AC229020529 /* ContentView.swift */; };
+		764CC3F88BD4AFA421CEAD58 /* SongSelectImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DB04444EAE1AF678B06E54D /* SongSelectImport.swift */; };
 		814DB6C4EFD897D3DC85DB4B /* What A Beautiful Name-chords-D.pdf in Resources */ = {isa = PBXBuildFile; fileRef = A4278AE6C351D6B6B365E095 /* What A Beautiful Name-chords-D.pdf */; };
 		834E05197C2DBE3C8BD7938D /* Viewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85DF11484BEEE6BFEB620B20 /* Viewer.swift */; };
 		866E77B9965F826F054A449E /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = F841BDEAD333172A85B8241D /* Sparkle */; };
@@ -44,6 +45,7 @@
 		091B996D7D21DDF52EDF2838 /* SongLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SongLibrary.swift; sourceTree = "<group>"; };
 		188AD18ACA037E4C924A1943 /* This Is How I Thank The Lord-chords-G.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "This Is How I Thank The Lord-chords-G.pdf"; sourceTree = "<group>"; };
 		18F217431FCFBDA2D948BF85 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		1DB04444EAE1AF678B06E54D /* SongSelectImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SongSelectImport.swift; sourceTree = "<group>"; };
 		21A29976A890994F13ECF760 /* ChartStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartStyle.swift; sourceTree = "<group>"; };
 		2810C66E88BA23020D1CB4A5 /* O Come O Come Emmanuel (Veni Emmanuel)-chords-Em.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "O Come O Come Emmanuel (Veni Emmanuel)-chords-Em.pdf"; sourceTree = "<group>"; };
 		361823FFCAF73327E5C09571 /* StageChartsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageChartsApp.swift; sourceTree = "<group>"; };
@@ -140,6 +142,7 @@
 				B8A2F22BDB2812B05F09E872 /* SetSharing.swift */,
 				AC0A2D639B81A1C3613FF5C3 /* SettingsView.swift */,
 				091B996D7D21DDF52EDF2838 /* SongLibrary.swift */,
+				1DB04444EAE1AF678B06E54D /* SongSelectImport.swift */,
 				8A468E4AEE93F9977B5A332E /* SongView.swift */,
 				361823FFCAF73327E5C09571 /* StageChartsApp.swift */,
 				85DF11484BEEE6BFEB620B20 /* Viewer.swift */,
@@ -268,6 +271,7 @@
 				E5AF3756A5F6FDD5F84686F0 /* SetSharing.swift in Sources */,
 				42133876C6B29C1C420DD3A4 /* SettingsView.swift in Sources */,
 				98C9B59C2C8F432C3B80A56B /* SongLibrary.swift in Sources */,
+				764CC3F88BD4AFA421CEAD58 /* SongSelectImport.swift in Sources */,
 				B15C6345E582646960E1826C /* SongView.swift in Sources */,
 				0272F65122764D1B0C4C5682 /* StageChartsApp.swift in Sources */,
 				834E05197C2DBE3C8BD7938D /* Viewer.swift in Sources */,

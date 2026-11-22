@@ -7,6 +7,7 @@ struct SongView: View {
     @EnvironmentObject var library: SongLibrary
     @EnvironmentObject var midi: MIDIController
     @EnvironmentObject var band: BandSync
+    @EnvironmentObject var importer: AutoImporter
     @AppStorage("chartStyle") private var styleRaw = ChartStyle.classic.rawValue
     @AppStorage("chartColumns") private var columnsRaw = ChartColumns.auto.rawValue
     let file: SongFile
@@ -72,7 +73,8 @@ struct SongView: View {
     private func pdfBody(_ url: URL) -> some View {
         VStack(spacing: 0) {
             PDFSongBar(file: file, key: currentKey, tempo: library.tempo(for: file), capo: capo,
-                       notes: settings.notes) { editingNote = EditingNote(note: $0, isNew: false) }
+                       notes: settings.notes, onTapNote: { editingNote = EditingNote(note: $0, isNew: false) },
+                       onGetFromSongSelect: { importer.open(song: file) })
             Divider()
             PDFKitView(url: url, command: midi.command)
         }

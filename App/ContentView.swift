@@ -8,6 +8,8 @@ struct ContentView: View {
     @EnvironmentObject var library: SongLibrary
     @EnvironmentObject var midi: MIDIController
     @EnvironmentObject var band: BandSync
+    @EnvironmentObject var importer: AutoImporter
+    @State private var showUpgradeQueue = false
     @AppStorage("activeSetID") private var activeSetRaw = ""     // "" = Library
     @State private var showSettings = false
     @State private var selection: String?          // song id (library) or "item:<uuid>" (set)
@@ -54,6 +56,10 @@ struct ContentView: View {
                 ToolbarItem {
                     Menu {
                         Button("Import songs…", systemImage: "square.and.arrow.down") { importing = true }
+                        Button("Get songs from SongSelect…", systemImage: "globe") { importer.browserURL = SongSelect.home }
+                        Button("Upgrade from SongSelect (\(importer.upgradeCandidates.count))…", systemImage: "arrow.up.circle") {
+                            showUpgradeQueue = true
+                        }
                         Button("New set list…", systemImage: "music.note.list") { pendingSongForNewSet = nil; startNewSet() }
                         if let set = activeSet {
                             Divider()
@@ -105,6 +111,12 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $showSettings) { SettingsView() }
+        .sheet(isPresented: $showUpgradeQueue) { UpgradeQueueView() }
+        .sheet(isPresented: Binding(get: { importer.browserURL != nil && !UserDefaults.standard.bool(forKey: "songSelectInBrowser") },
+                                    set: { if !$0 { importer.browserURL = nil; importer.stopQueue() } })) {
+            SongSelectBrowser(start: importer.browserURL ?? SongSelect.home)
+        }
+        .overlay(alignment: .bottom) { ToastView().animation(.easeInOut, value: importer.toast) }
         .onChange(of: midi.command) { _, cmd in handleMIDI(cmd) }
         .onChange(of: activeSetRaw) { _, _ in selectFirst(); leadSendSet() }
         .onChange(of: selection) { _, new in selectionChanged(new) }

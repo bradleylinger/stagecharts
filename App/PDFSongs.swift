@@ -65,6 +65,7 @@ struct PDFSongBar: View {
     let capo: Int
     let notes: [SongNote]
     var onTapNote: (SongNote) -> Void = { _ in }
+    var onGetFromSongSelect: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -79,7 +80,12 @@ struct PDFSongBar: View {
                 }
                 FormatTag(song: file.song)
                 Spacer()
-                Text("Original document – key can't be changed").font(.caption).foregroundColor(.secondary)
+                if let onGetFromSongSelect, file.song.ccli != nil {
+                    Button(action: onGetFromSongSelect) { Label("Get transposable version from SongSelect", systemImage: "arrow.up.circle") }
+                        .font(.caption)
+                } else {
+                    Text("Original document – key can't be changed").font(.caption).foregroundColor(.secondary)
+                }
             }
             if !notes.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {

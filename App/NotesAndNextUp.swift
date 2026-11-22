@@ -215,7 +215,7 @@ struct TempoEditor: View {
     static let signatures = ["2/4", "3/4", "4/4", "5/4", "6/4", "6/8", "7/8", "9/8", "12/8"]
 
     var body: some View {
-        NavigationView {
+        SheetNavigation {
             Form {
                 Section(header: Text("Our tempo"),
                         footer: Text(chartTempo.map { "The chart says \($0) BPM. Your tempo is used everywhere in StageCharts; the chart is left unchanged." }

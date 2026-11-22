@@ -181,7 +181,7 @@ struct SongSelectBrowser: View {
     let start: URL
 
     var body: some View {
-        NavigationView {
+        SheetNavigation {
             VStack(spacing: 0) {
                 if let song = importer.currentQueueSong, importer.queueTotal > 1 {
                     HStack {
@@ -381,7 +381,7 @@ struct UpgradeQueueView: View {
 
     var body: some View {
         let songs = importer.upgradeCandidates
-        NavigationView {
+        return SheetNavigation {
             List {
                 Section(footer: Text("These songs are shown as the original document and can't change key. Re-downloading each from SongSelect (PDF is fine) makes it transposable; set lists, keys, capos, notes and MIDI are kept.")) {
                     Button("Start (\(songs.count) songs)") { importer.startQueue(); dismiss() }
@@ -400,6 +400,19 @@ struct UpgradeQueueView: View {
         }
         #if os(macOS)
         .frame(minWidth: 520, minHeight: 560)
+        #endif
+    }
+}
+
+/// A navigation container for sheets. On the Mac, NavigationView makes a sidebar + empty detail
+/// (squeezing the content into a narrow column), so use a single-column stack there.
+struct SheetNavigation<Content: View>: View {
+    @ViewBuilder var content: Content
+    var body: some View {
+        #if os(macOS)
+        NavigationStack { content }
+        #else
+        NavigationView { content }.navigationViewStyle(.stack)
         #endif
     }
 }

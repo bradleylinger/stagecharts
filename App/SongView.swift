@@ -63,7 +63,15 @@ struct SongView: View {
         else { library.update(file.id) { $0.capo = v } }
     }
 
-    private var size: CGFloat { 22 * settings.fontScale }
+    /// Phones get a smaller base size, margins and indent so lines don't wrap.
+    private var isPhone: Bool {
+        #if os(iOS)
+        UIDevice.current.userInterfaceIdiom == .phone
+        #else
+        false
+        #endif
+    }
+    private var size: CGFloat { (isPhone ? 15 : 22) * settings.fontScale }
 
     var body: some View {
         if let pdf = file.pdfURL { pdfBody(pdf) } else { textBody }
@@ -105,7 +113,7 @@ struct SongView: View {
     private var textBody: some View {
         let song = displayed
         return GeometryReader { geo in
-            let horizontalPadding = max(24, geo.size.width * 0.05)
+            let horizontalPadding = isPhone ? 14 : max(24, geo.size.width * 0.05)
             let usable = geo.size.width - horizontalPadding * 2
             let columnCount = columns.count(forWidth: usable, textSize: size)
             ScrollView {
@@ -183,7 +191,7 @@ struct SongView: View {
     private func column(_ sections: [SongSection]) -> some View {
         VStack(alignment: .leading, spacing: size * 1.4) {
             ForEach(sections) { section in
-                SectionView(section: section, size: size, style: style,
+                SectionView(section: section, size: size, style: style, indent: isPhone ? size * 0.8 : nil,
                             notes: settings.notes.filter { $0.section == section.id },
                             onAddNote: { editingNote = EditingNote(note: SongNote(section: section.id, text: ""), isNew: true) },
                             onEditNote: { editingNote = EditingNote(note: $0, isNew: false) })
@@ -447,6 +455,7 @@ struct SectionView: View {
     let section: SongSection
     let size: CGFloat
     let style: ChartStyle
+    var indent: CGFloat? = nil          // lyric indent under headings (default 2.4 × text size)
     var notes: [SongNote] = []
     var onAddNote: (() -> Void)? = nil
     var onEditNote: ((SongNote) -> Void)? = nil
@@ -464,7 +473,7 @@ struct SectionView: View {
             }
             ForEach(notes) { note in
                 StickyNoteView(note: note, size: size) { onEditNote?(note) }
-                    .padding(.leading, section.label == nil ? 0 : size * 2.4)
+                    .padding(.leading, section.label == nil ? 0 : (indent ?? size * 2.4))
                     .padding(.bottom, size * 0.3)
             }
             VStack(alignment: .leading, spacing: size * 0.25) {
@@ -487,7 +496,7 @@ struct SectionView: View {
                     }
                 }
             }
-            .padding(.leading, section.label == nil ? 0 : size * 2.4)   // lyrics indented under the heading
+            .padding(.leading, section.label == nil ? 0 : (indent ?? size * 2.4))   // lyrics indented under the heading
         }
     }
 

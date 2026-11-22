@@ -359,14 +359,11 @@ struct SongView: View {
     @ToolbarContentBuilder
     private func toolbar(sectionCount: Int) -> some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
-            Button { perform(.previousSection, sectionCount: sectionCount) } label: {
-                Label("Previous section", systemImage: "chevron.up")
-            }
-            .keyboardShortcut(.upArrow, modifiers: [])     // page-turner pedals send arrow keys
-            Button { perform(.nextSection, sectionCount: sectionCount) } label: {
-                Label("Next section", systemImage: "chevron.down")
-            }
-            .keyboardShortcut(.downArrow, modifiers: [])
+            // Page-turner pedals send arrow keys: kept as hidden shortcuts, no toolbar buttons.
+            Button { perform(.previousSection, sectionCount: sectionCount) } label: { EmptyView() }
+                .keyboardShortcut(.upArrow, modifiers: []).frame(width: 0).opacity(0)
+            Button { perform(.nextSection, sectionCount: sectionCount) } label: { EmptyView() }
+                .keyboardShortcut(.downArrow, modifiers: []).frame(width: 0).opacity(0)
             Button { perform(.pageDown, sectionCount: sectionCount) } label: { EmptyView() }
                 .keyboardShortcut(.pageDown, modifiers: []).frame(width: 0).opacity(0)
             Button { perform(.pageUp, sectionCount: sectionCount) } label: { EmptyView() }

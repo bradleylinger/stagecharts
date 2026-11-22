@@ -217,7 +217,7 @@ struct WebView {
     let url: URL
     let onDownload: (URL) -> Void
 
-    final class Coordinator: NSObject, WKNavigationDelegate, WKDownloadDelegate, WKScriptMessageHandler {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate, WKScriptMessageHandler {
         var onDownload: (URL) -> Void
         var lastURL: URL?
         private var destinations: [ObjectIdentifier: URL] = [:]
@@ -225,7 +225,51 @@ struct WebView {
 
         func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                      decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            if let u = action.request.url, Self.grabInPage(u, in: webView, name: nil, coordinator: self) {
+                decisionHandler(.cancel); return
+            }
             decisionHandler(action.shouldPerformDownload ? .download : .allow)
+        }
+
+        /// window.open(…) of a generated file: import it instead of opening a new window.
+        func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
+                     for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+            if let u = action.request.url, !Self.grabInPage(u, in: webView, name: nil, coordinator: self),
+               u.scheme?.hasPrefix("http") == true {
+                webView.load(action.request)          // other popups: open in the same view
+            }
+            return nil
+        }
+
+        /// blob:/data: URLs are SongSelect's generated files. Returns true if handled.
+        static func grabInPage(_ u: URL, in webView: WKWebView, name: String?, coordinator: Coordinator) -> Bool {
+            switch u.scheme {
+            case "data":
+                coordinator.log("navigate data: \(u.absoluteString.prefix(40))")
+                coordinator.save(dataURL: u.absoluteString, name: name)
+                return true
+            case "blob":
+                coordinator.log("navigate blob: \(u.absoluteString)")
+                let js = "window.__stagechartsSend && window.__stagechartsSend(\(Self.jsString(u.absoluteString)), null)"
+                webView.evaluateJavaScript(js) { _, err in if let err { coordinator.log("blob eval error \(err)") } }
+                return true
+            default: return false
+            }
+        }
+        static func jsString(_ s: String) -> String {
+            String(data: (try? JSONSerialization.data(withJSONObject: [s])) ?? Data("[\"\"]".utf8), encoding: .utf8)!
+                .dropFirst().dropLast().description
+        }
+
+        /// Diagnostics: tmp/songselect-downloads/log.txt
+        func log(_ line: String) {
+            let dir = FileManager.default.temporaryDirectory.appendingPathComponent("songselect-downloads", isDirectory: true)
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            let f = dir.appendingPathComponent("log.txt")
+            if let size = (try? f.resourceValues(forKeys: [.fileSizeKey]))?.fileSize, size > 100_000 { try? FileManager.default.removeItem(at: f) }
+            let entry = Data("\(Date()) \(line)\n".utf8)
+            if let h = try? FileHandle(forWritingTo: f) { h.seekToEndOfFile(); h.write(entry); try? h.close() }
+            else { try? entry.write(to: f) }
         }
         func webView(_ webView: WKWebView, decidePolicyFor response: WKNavigationResponse,
                      decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
@@ -244,19 +288,34 @@ struct WebView {
         }
         /// SongSelect builds files in the page (blob: links); the injected script sends them here.
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-            guard let body = message.body as? [String: Any], let dataURL = body["data"] as? String,
-                  let comma = dataURL.firstIndex(of: ","),
-                  let data = Data(base64Encoded: String(dataURL[dataURL.index(after: comma)...])) else { return }
-            let raw = (body["name"] as? String) ?? "download.pdf"
+            if message.name == "stagechartsLog" { log("js: \(message.body)"); return }
+            guard let body = message.body as? [String: Any], let dataURL = body["data"] as? String else { return }
+            log("received \(body["name"] ?? "?") \(dataURL.count) chars")
+            save(dataURL: dataURL, name: body["name"] as? String)
+        }
+
+        func save(dataURL: String, name: String?) {
+            guard let comma = dataURL.firstIndex(of: ",") else { return }
+            let header = dataURL[..<comma]
+            let payload = String(dataURL[dataURL.index(after: comma)...])
+            let data = header.hasSuffix(";base64") ? Data(base64Encoded: payload)
+                                                   : payload.removingPercentEncoding.map { Data($0.utf8) }
+            guard let data else { log("could not decode"); return }
+            let isPDF = data.starts(with: Data("%PDF".utf8))
+            let raw = name ?? (isPDF ? "SongSelect.pdf" : "SongSelect.chordpro")
             let name = raw.components(separatedBy: CharacterSet(charactersIn: "/\\:?%*|\"<>")).joined(separator: "-")
             let dir = FileManager.default.temporaryDirectory.appendingPathComponent("songselect-downloads", isDirectory: true)
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             let dest = dir.appendingPathComponent(UUID().uuidString.prefix(6) + "-" + name)
             guard (try? data.write(to: dest)) != nil else { return }
-            onDownload(dest)
+            log("saved \(dest.lastPathComponent)")
+            DispatchQueue.main.async { self.onDownload(dest) }
         }
 
+        func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) { log("download failed \(error)") }
+
         func downloadDidFinish(_ download: WKDownload) {
+            log("download finished")
             guard let dest = destinations.removeValue(forKey: ObjectIdentifier(download)) else { return }
             DispatchQueue.main.async { self.onDownload(dest) }
         }
@@ -269,9 +328,14 @@ struct WebView {
         if let js = Bundle.main.url(forResource: "songselect-download", withExtension: "js").flatMap({ try? String(contentsOf: $0) }) {
             config.userContentController.addUserScript(WKUserScript(source: js, injectionTime: .atDocumentStart, forMainFrameOnly: false))
             config.userContentController.add(c, name: "stagechartsDownload")
+            config.userContentController.add(c, name: "stagechartsLog")
         }
+        // Say "Safari": SongSelect's download code takes a web-view-hostile path for unknown browsers.
+        config.applicationNameForUserAgent = "Version/18.0 Safari/605.1.15"
         let v = WKWebView(frame: .zero, configuration: config)
         v.navigationDelegate = c
+        v.uiDelegate = c
+        if #available(iOS 16.4, macOS 13.3, *) { v.isInspectable = true }
         v.load(URLRequest(url: url)); c.lastURL = url
         return v
     }

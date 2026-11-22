@@ -14,23 +14,34 @@
   function post(name, dataURL) {
     window.webkit.messageHandlers.stagechartsDownload.postMessage({ name: name || "download", data: dataURL });
   }
+  function log(m) { try { window.webkit.messageHandlers.stagechartsLog.postMessage(String(m)); } catch (e) {} }
+  window.__stagechartsSend = function (href, name) { send(href, name); };
   function send(href, name) {
+    log("send " + String(href).slice(0, 60) + " " + name);
     var read = function (blob) {
       var fr = new FileReader();
       fr.onload = function () { post(name, fr.result); };
       fr.readAsDataURL(blob);
     };
     if (blobs[href]) read(blobs[href]);
-    else fetch(href).then(function (r) { return r.blob(); }).then(read);
+    else fetch(href).then(function (r) { return r.blob(); }).then(read).catch(function (e) { log("fetch failed " + e); });
   }
   function intercept(a) {
     var href = String(a.href || "");
-    if (a.hasAttribute && a.hasAttribute("download") && /^(blob:|data:)/.test(href)) {
-      send(href, a.getAttribute("download"));
+    if (/^(blob:|data:)/.test(href)) log("anchor " + href.slice(0, 60) + " download=" + a.getAttribute("download"));
+    if (/^(blob:|data:)/.test(href)) {
+      send(href, a.getAttribute("download") || null);
       return true;
     }
     return false;
   }
+  var open = window.open;
+  window.open = function (u) {
+    var href = String(u || "");
+    log("window.open " + href.slice(0, 60));
+    if (/^(blob:|data:)/.test(href)) { send(href, null); return null; }
+    return open.apply(this, arguments);
+  };
   var dispatch = HTMLAnchorElement.prototype.dispatchEvent;
   HTMLAnchorElement.prototype.dispatchEvent = function (e) {
     if (e && e.type === "click" && intercept(this)) return true;

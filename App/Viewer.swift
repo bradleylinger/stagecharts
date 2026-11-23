@@ -174,6 +174,11 @@ struct ViewerSongView: View {
     }
 
     var body: some View {
+        content
+            .task(id: "\(file.id)|\(library.tempo(for: file) ?? 0)") { midi.songTempoChanged(library.tempo(for: file)) }
+    }
+
+    @ViewBuilder private var content: some View {
         if let pdf = file.pdfURL {
             VStack(spacing: 0) {
                 PDFSongBar(file: file, key: rendered.soundingKey, tempo: library.tempo(for: file), capo: capo,

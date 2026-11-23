@@ -94,6 +94,18 @@ final class MIDIController: ObservableObject {
     /// Number of songs in the loaded set list (nil when browsing the Library).
     var activeSetLength: () -> Int? = { nil }
 
+    /// MIDI clock: send, receive or pass through (see MIDIClock.swift).
+    nonisolated let clock = MIDIClockEngine()
+    @Published var clockMode: MIDIClockMode = MIDIClockMode(rawValue: UserDefaults.standard.string(forKey: "midiClockMode") ?? "") ?? .off {
+        didSet { UserDefaults.standard.set(clockMode.rawValue, forKey: "midiClockMode"); clock.setMode(clockMode); watchClock() }
+    }
+    /// Send mode: also send Start whenever a song is picked (off by default – it starts whatever follows the clock).
+    @Published var clockStartOnSong = UserDefaults.standard.bool(forKey: "midiClockStartOnSong") {
+        didSet { UserDefaults.standard.set(clockStartOnSong, forKey: "midiClockStartOnSong") }
+    }
+    @Published private(set) var clockState = MIDIClockEngine.Snapshot()
+    private var clockTimer: Timer?
+
     private var client = MIDIClientRef()
     private var inputPort = MIDIPortRef()
     private var destination = MIDIEndpointRef()
@@ -132,7 +144,16 @@ final class MIDIController: ObservableObject {
         }
         guard err == noErr else { status = "MIDI unavailable (error \(err))"; return }
 
-        let receive: MIDIReceiveBlock = { [weak self] list, _ in
+        let clock = self.clock
+        let networkSource = MIDINetworkSession.default().sourceEndpoint()
+        let receive: MIDIReceiveBlock = { [weak self] list, refCon in
+            // Clock and transport are handled right here on the MIDI thread (timing matters).
+            let fromNetwork = refCon.map { MIDIEndpointRef(UInt(bitPattern: $0)) } == networkSource && networkSource != 0
+            for (status, word, time) in MIDIController.systemMessages(list) {
+                if let forward = clock.received(status, word: word, hostTime: time) {
+                    clock.output(forward, 0, !fromNetwork)      // don't echo the network's clock back to it
+                }
+            }
             let messages = MIDIController.decode(list)
             guard !messages.isEmpty else { return }
             Task { @MainActor in messages.forEach { self?.handle($0) } }
@@ -146,6 +167,18 @@ final class MIDIController: ObservableObject {
         // Output: a virtual source other apps can listen to, plus the network session.
         MIDIOutputPortCreate(client, "StageCharts Out" as CFString, &outputPort)
         MIDISourceCreateWithProtocol(client, "StageCharts" as CFString, ._1_0, &virtualSource)
+        let (port, source) = (outputPort, virtualSource)
+        clock.output = { words, time, toNetwork in
+            var list = MIDIEventList()
+            let packet = MIDIEventListInit(&list, ._1_0)
+            var w = words
+            _ = MIDIEventListAdd(&list, MemoryLayout<MIDIEventList>.size, packet, time, w.count, &w)
+            let network = MIDINetworkSession.default().destinationEndpoint()
+            if toNetwork, network != 0 { MIDISendEventList(port, network, &list) }
+            if source != 0 { MIDIReceivedEventList(source, &list) }
+        }
+        clock.setMode(clockMode)
+        watchClock()
 
         // Network MIDI (RTP-MIDI): makes this device visible in Audio MIDI Setup → Network.
         let session = MIDINetworkSession.default()
@@ -163,7 +196,9 @@ final class MIDIController: ObservableObject {
             let src = MIDIGetSource(i)
             var uid: MIDIUniqueID = 0
             MIDIObjectGetIntegerProperty(src, kMIDIPropertyUniqueID, &uid)
-            if !connected.contains(uid), MIDIPortConnectSource(inputPort, src, nil) == noErr {
+            if src == virtualSource { continue }     // our own output: listening to it would loop
+            if !connected.contains(uid),
+               MIDIPortConnectSource(inputPort, src, UnsafeMutableRawPointer(bitPattern: UInt(src))) == noErr {
                 connected.insert(uid)
             }
             var name: Unmanaged<CFString>?
@@ -197,6 +232,52 @@ final class MIDIController: ObservableObject {
         }
         return out
     }
+
+    /// System real-time / common messages (clock, start, continue, stop, song position) with their timestamps.
+    nonisolated static func systemMessages(_ list: UnsafePointer<MIDIEventList>) -> [(UInt8, UInt32, UInt64)] {
+        var out: [(UInt8, UInt32, UInt64)] = []
+        for packet in list.unsafeSequence() {
+            let count = Int(packet.pointee.wordCount), time = packet.pointee.timeStamp
+            withUnsafeBytes(of: packet.pointee.words) { raw in
+                let words = raw.bindMemory(to: UInt32.self)
+                var i = 0
+                while i < count {
+                    let w = words[i], type = w >> 28
+                    if type == 0x1 { out.append((UInt8((w >> 16) & 0xFF), w, time)) }
+                    switch type { case 0x3, 0x4: i += 2; case 0x5: i += 4; default: i += 1 }
+                }
+            }
+        }
+        return out
+    }
+
+    /// Publishes the clock's tempo / transport a few times a second while the clock is on.
+    private func watchClock() {
+        clockTimer?.invalidate(); clockTimer = nil
+        clockState = clock.snapshot
+        guard clockMode != .off else { return }
+        clockTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                let s = self.clock.snapshot
+                if s.bpm.map({ ($0 * 10).rounded() }) != self.clockState.bpm.map({ ($0 * 10).rounded() })
+                    || s.running != self.clockState.running || (s.lastTick == nil) != (self.clockState.lastTick == nil) {
+                    self.clockState = s
+                }
+            }
+        }
+    }
+
+    /// The song on screen changed: in send mode the clock follows its tempo (and may send Start).
+    func songTempoChanged(_ bpm: Int?) {
+        guard clockMode == .send, let bpm, bpm > 0 else { return }
+        clock.setTempo(Double(bpm))
+        if clockStartOnSong { clock.start() }
+        clockState = clock.snapshot
+    }
+
+    func clockStart() { clock.start(); clockState = clock.snapshot }
+    func clockStop() { clock.stop(); clockState = clock.snapshot }
 
     // MARK: Handling
 

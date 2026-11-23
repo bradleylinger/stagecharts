@@ -91,6 +91,8 @@ struct SongView: View {
         .sheet(isPresented: $showTransition) {
             if let (a, b) = transitionPair { TransitionSheet(from: a, to: b, capo: capo) }
         }
+        // MIDI clock (send mode) follows the song on screen.
+        .task(id: "\(file.id)|\(library.tempo(for: file) ?? 0)") { midi.songTempoChanged(library.tempo(for: file)) }
     }
 
     /// This song and the next one in the set, both in the sounding key (no capo), for transition ideas.

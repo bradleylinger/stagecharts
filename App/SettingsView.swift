@@ -40,6 +40,7 @@ struct SettingsView: View {
                 actionsSection
                 setSlotsSection
                 sendSection
+                clockSection
                 songsSection
                 monitorSection
                 GoogleDriveSection()
@@ -269,6 +270,47 @@ struct SettingsView: View {
             Text("Two-way MIDI")
         } footer: {
             Text("When you tap a song in the set on this device, StageCharts sends that message (on channel \(max(1, midi.mapping.listenChannel))) over the network session and its “StageCharts” MIDI output. In Ableton: enable Remote for that input, then MIDI-map the CC to the song’s scene. Changes that came from Ableton aren’t sent back.")
+        }
+    }
+
+    private var clockSection: some View {
+        Section {
+            Picker("MIDI clock", selection: $midi.clockMode) {
+                ForEach(MIDIClockMode.allCases) { Text($0.title).tag($0) }
+            }
+            switch midi.clockMode {
+            case .off:
+                EmptyView()
+            case .send:
+                HStack {
+                    Text(midi.clockState.bpm.map { String(format: "%.0f BPM", $0) } ?? "–")
+                        .font(.body.monospacedDigit())
+                    Text(midi.clockState.running ? "Playing" : "Stopped").foregroundColor(.secondary)
+                    Spacer()
+                    Button("Start") { midi.clockStart() }
+                    Button("Stop") { midi.clockStop() }
+                }
+                .buttonStyle(.bordered)
+                Toggle("Send Start when a song is picked", isOn: $midi.clockStartOnSong)
+            case .receive, .passThrough:
+                HStack {
+                    if let bpm = midi.clockState.bpm {
+                        Text(String(format: "%.1f BPM", bpm)).font(.body.monospacedDigit())
+                        Text(midi.clockState.running ? "Playing" : "Stopped").foregroundColor(.secondary)
+                    } else {
+                        Text("No clock coming in").foregroundColor(.secondary)
+                    }
+                }
+            }
+        } header: {
+            Text("MIDI clock")
+        } footer: {
+            switch midi.clockMode {
+            case .off: Text("Send, receive or pass through MIDI clock (24 per beat) with Start / Stop.")
+            case .send: Text("StageCharts is the clock: it runs at the BPM of the song on screen and goes out over the network session and the “StageCharts” MIDI output. Set Ableton / Playback to follow external sync from that input. Start only goes out when you press Start (or pick a song, if turned on).")
+            case .receive: Text("Shows the tempo and transport of a clock coming in on any MIDI input – e.g. Ableton with Sync turned on for the StageCharts output.")
+            case .passThrough: Text("Clock, Start / Stop and song position coming in on any input are forwarded to StageCharts’ outputs (network session and the “StageCharts” MIDI output), so other gear can follow. Clock from the network session isn't sent back to it.")
+            }
         }
     }
 

@@ -22,6 +22,7 @@ struct ContentView: View {
     @State private var pickingAIChart = false
     @State private var aiChartURL: URL?
     @State private var scanningChart = false
+    @State private var playbackSyncSet: SetList?
     @State private var pickingPhoto = false
     @State private var photoItem: PhotosPickerItem?
     @State private var newSetName = ""
@@ -84,6 +85,9 @@ struct ContentView: View {
                 }
             }
             #endif
+            #if os(macOS)
+            .sheet(item: $playbackSyncSet) { PlaybackSyncSheet(set: $0) }
+            #endif
             .sheet(item: $aiChartURL) { url in
                 AIConvertSheet(source: .file(url)) { id in activeSetRaw = ""; selection = id }
             }
@@ -125,6 +129,9 @@ struct ContentView: View {
                                 NSPasteboard.general.clearContents(); NSPasteboard.general.setString(text, forType: .string)
                                 #endif
                             }
+                            #if os(macOS)
+                            Button("Sync to Playback…", systemImage: "arrow.triangle.2.circlepath") { playbackSyncSet = set }
+                            #endif
                             Button("Print set list…", systemImage: "printer") {
                                 ChartPDF.print(ChartPDF.file(for: rendered(set), name: set.name, setTitle: set.name),
                                                jobName: set.name)

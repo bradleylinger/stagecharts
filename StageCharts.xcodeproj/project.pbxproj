@@ -10,6 +10,7 @@
 		0272F65122764D1B0C4C5682 /* StageChartsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 361823FFCAF73327E5C09571 /* StageChartsApp.swift */; };
 		07BDAD5006843AE396EC8FAD /* songselect-download.js in Resources */ = {isa = PBXBuildFile; fileRef = 471BF70D51D2B70D91E80B9E /* songselect-download.js */; };
 		0EBC9EAE73520AEE80846B26 /* Holy Forever-chords-Bb.pdf in Resources */ = {isa = PBXBuildFile; fileRef = D2F173F76CF67C4D3EABEEB0 /* Holy Forever-chords-Bb.pdf */; };
+		21E310C2C080D23C286791D1 /* PlaybackSyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64D26BC6C6E3018DC56ED470 /* PlaybackSyncEngine.swift */; };
 		2EF3C70C5C943BC762437527 /* GoogleDriveSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = F610E83180951504B6804CAF /* GoogleDriveSync.swift */; };
 		303A87FAB87E127745E61A8A /* Goodness Of God-chords-Ab.pdf in Resources */ = {isa = PBXBuildFile; fileRef = A6B63466886982F071B7BC91 /* Goodness Of God-chords-Ab.pdf */; };
 		35B887185C3446B0A7A15D00 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 18F217431FCFBDA2D948BF85 /* Assets.xcassets */; };
@@ -21,6 +22,7 @@
 		4F34FA092D94C5350448D441 /* House Of The Lord-chords-Bb.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 4547B3556E743C036C9499A3 /* House Of The Lord-chords-Bb.pdf */; };
 		4FED3463389CD5C9545A839D /* ChordProKit in Frameworks */ = {isa = PBXBuildFile; productRef = C176A684DB57B53C84E15EA8 /* ChordProKit */; };
 		54D3C50C60282C55AC042EDF /* I'm So Blessed-chords-D.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 9DD48E38F5779A4CEB59D3CB /* I'm So Blessed-chords-D.pdf */; };
+		67862352AB7F214372D0D397 /* PlaybackSyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAACFE9F57E93F1F9E143B57 /* PlaybackSyncView.swift */; };
 		70260258E1BF55CC5785D8B7 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60880C5D22BD5AC229020529 /* ContentView.swift */; };
 		764CC3F88BD4AFA421CEAD58 /* SongSelectImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DB04444EAE1AF678B06E54D /* SongSelectImport.swift */; };
 		814DB6C4EFD897D3DC85DB4B /* What A Beautiful Name-chords-D.pdf in Resources */ = {isa = PBXBuildFile; fileRef = A4278AE6C351D6B6B365E095 /* What A Beautiful Name-chords-D.pdf */; };
@@ -65,6 +67,7 @@
 		60880C5D22BD5AC229020529 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		612802D3AC5B7FD50E44A145 /* MIDIController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MIDIController.swift; sourceTree = "<group>"; };
 		632281883DC5E105CAF56FC7 /* SetList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetList.swift; sourceTree = "<group>"; };
+		64D26BC6C6E3018DC56ED470 /* PlaybackSyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackSyncEngine.swift; sourceTree = "<group>"; };
 		6FC899D2D34CC1FB2328FC83 /* CCLIReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CCLIReport.swift; sourceTree = "<group>"; };
 		7240A0591BF363D3AB174FED /* AIAssistant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAssistant.swift; sourceTree = "<group>"; };
 		79304C82310916CD77B2D8AA /* Build My Life-chords-G.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "Build My Life-chords-G.pdf"; sourceTree = "<group>"; };
@@ -81,6 +84,7 @@
 		B8A2F22BDB2812B05F09E872 /* SetSharing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetSharing.swift; sourceTree = "<group>"; };
 		CDBFDF7E21566C93BA44FE75 /* Way Maker-chords-E.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "Way Maker-chords-E.pdf"; sourceTree = "<group>"; };
 		D2F173F76CF67C4D3EABEEB0 /* Holy Forever-chords-Bb.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "Holy Forever-chords-Bb.pdf"; sourceTree = "<group>"; };
+		EAACFE9F57E93F1F9E143B57 /* PlaybackSyncView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackSyncView.swift; sourceTree = "<group>"; };
 		F1A5BA7E448D4DA7AF76F21D /* PDFSongs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFSongs.swift; sourceTree = "<group>"; };
 		F610E83180951504B6804CAF /* GoogleDriveSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleDriveSync.swift; sourceTree = "<group>"; };
 		FC1571D3EF446C71B43A48CF /* BandSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BandSync.swift; sourceTree = "<group>"; };
@@ -159,6 +163,8 @@
 				4BE29341E15A4E650FA9B446 /* NotesAndNextUp.swift */,
 				55FBD50C2C4893DEB5077DD6 /* OnSongImporter.swift */,
 				F1A5BA7E448D4DA7AF76F21D /* PDFSongs.swift */,
+				64D26BC6C6E3018DC56ED470 /* PlaybackSyncEngine.swift */,
+				EAACFE9F57E93F1F9E143B57 /* PlaybackSyncView.swift */,
 				9E9BDFB037C4244B90B476FC /* Printing.swift */,
 				632281883DC5E105CAF56FC7 /* SetList.swift */,
 				B8A2F22BDB2812B05F09E872 /* SetSharing.swift */,
@@ -294,6 +300,8 @@
 				C2FC4A842656B03ECC732E39 /* NotesAndNextUp.swift in Sources */,
 				AFAFE8471767F73ACB5F5E83 /* OnSongImporter.swift in Sources */,
 				3E5E1B8230DD2B52B1CDF795 /* PDFSongs.swift in Sources */,
+				21E310C2C080D23C286791D1 /* PlaybackSyncEngine.swift in Sources */,
+				67862352AB7F214372D0D397 /* PlaybackSyncView.swift in Sources */,
 				CBCB2F39D24FA7DF8E365F10 /* Printing.swift in Sources */,
 				C2BD641BB4A6A8BA4DBAD647 /* SetList.swift in Sources */,
 				E5AF3756A5F6FDD5F84686F0 /* SetSharing.swift in Sources */,

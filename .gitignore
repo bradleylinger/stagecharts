@@ -6,3 +6,5 @@
 DerivedData/
 samples/pdf/
 xcuserdata/
+# Ableton LinkKit (iOS): its license forbids redistributing it. Get it with tools/fetch-linkkit.sh.
+Vendor/LinkKit/

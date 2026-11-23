@@ -41,6 +41,7 @@ struct SettingsView: View {
                 setSlotsSection
                 sendSection
                 clockSection
+                LinkSettingsSection(link: midi.link)
                 songsSection
                 monitorSection
                 GoogleDriveSection()

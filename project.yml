@@ -45,11 +45,20 @@ targets:
       - path: App
       - path: samples
         buildPhase: resources
+      - path: Vendor/LinkKit/LinkKitResources.bundle
+        buildPhase: resources
+        destinationFilters: [iOS]
     dependencies:
       - package: ChordProKit
         product: ChordProKit
       - package: ChordProKit
         product: StageMIDI
+      - package: ChordProKit
+        product: AbletonLink
+        destinationFilters: [macOS]
+      - framework: Vendor/LinkKit/LinkKit.xcframework
+        embed: false
+        destinationFilters: [iOS]
       - package: Sparkle
         destinationFilters: [macOS]
     settings:
@@ -69,6 +78,9 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         TARGETED_DEVICE_FAMILY: "1,2"
         SWIFT_VERSION: "5.0"
+        SWIFT_OBJC_BRIDGING_HEADER: App/StageCharts-Bridging-Header.h
+        "HEADER_SEARCH_PATHS[sdk=iphoneos*]": "$(inherited) $(PROJECT_DIR)/Vendor/LinkKit/LinkKit.xcframework/ios-arm64/Headers"
+        "HEADER_SEARCH_PATHS[sdk=iphonesimulator*]": "$(inherited) $(PROJECT_DIR)/Vendor/LinkKit/LinkKit.xcframework/ios-arm64_x86_64-simulator/Headers"
         CODE_SIGN_STYLE: Automatic
         ENABLE_PREVIEWS: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

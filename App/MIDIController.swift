@@ -96,6 +96,8 @@ final class MIDIController: ObservableObject {
 
     /// MIDI clock: send, receive or pass through (see MIDIClock.swift).
     nonisolated let clock = MIDIClockEngine()
+    /// Ableton Link (see LinkSession.swift).
+    let link = LinkSession()
     @Published var clockMode: MIDIClockMode = MIDIClockMode(rawValue: UserDefaults.standard.string(forKey: "midiClockMode") ?? "") ?? .off {
         didSet { UserDefaults.standard.set(clockMode.rawValue, forKey: "midiClockMode"); clock.setMode(clockMode); watchClock() }
     }
@@ -270,6 +272,7 @@ final class MIDIController: ObservableObject {
 
     /// The song on screen changed: in send mode the clock follows its tempo (and may send Start).
     func songTempoChanged(_ bpm: Int?) {
+        link.songTempoChanged(bpm)
         guard clockMode == .send, let bpm, bpm > 0 else { return }
         clock.setTempo(Double(bpm))
         if clockStartOnSong { clock.start() }

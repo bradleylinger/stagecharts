@@ -256,8 +256,12 @@ struct TempoEditor: View {
                         if !Self.signatures.contains(time) { Text(time).tag(time) }
                     }
                     .pickerStyle(.segmented)
+                    .labelsHidden()
                 }
             }
+            #if os(macOS)
+            .formStyle(.grouped)
+            #endif
             .navigationTitle("Tempo & time")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -265,7 +269,7 @@ struct TempoEditor: View {
             }
         }
         #if os(macOS)
-        .frame(minWidth: 520, minHeight: 360)
+        .frame(minWidth: 580, minHeight: 480)
         #endif
     }
 

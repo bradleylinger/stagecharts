@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 import ChordProKit
 
 /// Sidebar shows either the Library (all songs) or one set list (songs for a service, in order).
-@available(iOS 18, macOS 15, *)
+@available(iOS 18, macOS 14, *)
 struct ContentView: View {
     @EnvironmentObject var library: SongLibrary
     @EnvironmentObject var midi: MIDIController
@@ -145,9 +145,15 @@ struct ContentView: View {
         } detail: {
             ZStack {
                 if let (file, setID, itemID) = resolveSelection() {
-                    SongView(file: file, setID: setID, itemID: itemID)
-                        .id(selection)
-                        .transition(songTransition)
+                    Group {
+                        if #available(iOS 18, macOS 15, *) {
+                            SongView(file: file, setID: setID, itemID: itemID)
+                        } else {
+                            ViewerSongView(file: file, setID: setID, itemID: itemID)   // macOS 14: simpler song view
+                        }
+                    }
+                    .id(selection)
+                    .transition(songTransition)
                 } else {
                     ContentUnavailableView("Pick a song", systemImage: "music.note")
                 }

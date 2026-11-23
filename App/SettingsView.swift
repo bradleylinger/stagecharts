@@ -4,7 +4,7 @@ import StageMIDI
 import ChordProKit
 
 /// App settings: MIDI connection, action mapping with MIDI learn, song numbers, monitor, display.
-@available(iOS 18, macOS 15, *)
+@available(iOS 18, macOS 14, *)
 struct SettingsView: View {
     @EnvironmentObject var midi: MIDIController
     @EnvironmentObject var library: SongLibrary

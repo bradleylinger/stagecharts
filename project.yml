@@ -25,7 +25,8 @@ targets:
         SUFeedURL: https://github.com/bradleylinger/stagecharts/releases/latest/download/appcast.xml
         SUPublicEDKey: veNPr30O/xROuQOvXh30sZi07N8/MdBI7z2dR9k/CMI=
         SUEnableAutomaticChecks: true
-        SUScheduledCheckInterval: 86400
+        SUScheduledCheckInterval: 3600
+        SUAutomaticallyUpdate: true
         NSBonjourServices: [_apple-midi._udp, _stagecharts._tcp, _stagecharts._udp]
         UTExportedTypeDeclarations:
           - UTTypeIdentifier: com.bradlinger.stagecharts.set

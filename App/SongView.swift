@@ -19,7 +19,8 @@ struct SongView: View {
     @State private var metrics = ScrollMetrics()
     @State private var editingNote: EditingNote?
     @State private var swipeOffset: CGFloat = 0
-    @State private var chromeHidden = ProcessInfo.processInfo.arguments.contains("-chromeHidden")   // testing
+    /// Toolbar hidden/shown. Per window, not per song: swiping or picking another song keeps it as it was.
+    @SceneStorage("chromeHidden") private var chromeHidden = ProcessInfo.processInfo.arguments.contains("-chromeHidden")
     @State private var showOriginal = false
     @State private var showAIConvert = false
     @State private var showTransition = false     // iOS: tap the chart to hide / show the top bar
@@ -227,7 +228,6 @@ struct SongView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(chromeHidden ? .hidden : .visible, for: .navigationBar)
         .statusBarHidden(chromeHidden)
-        .onChange(of: file.id) { _, _ in if !ProcessInfo.processInfo.arguments.contains("-chromeHidden") { chromeHidden = false } }
         #endif
     }
 

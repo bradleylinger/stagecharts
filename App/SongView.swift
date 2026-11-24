@@ -610,8 +610,10 @@ struct ChordLyricLine: View {
                         // Fixed-height chord slot (room for raised extensions) keeps lyrics on one baseline.
                         Group {
                             if let chord = chunk.chord {
-                                ChordLabel.text(chord, size: size, color: style.chord)
-                                    .padding(.trailing, size * 0.45)
+                                ChordTapTarget(chord: chord) {
+                                    ChordLabel.text(chord, size: size, color: style.chord)
+                                }
+                                .padding(.trailing, size * 0.45)
                             } else {
                                 Text(" ").font(ChartFonts.chord(size))
                             }

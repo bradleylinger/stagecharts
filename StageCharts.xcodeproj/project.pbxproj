@@ -26,6 +26,7 @@
 		4FED3463389CD5C9545A839D /* ChordProKit in Frameworks */ = {isa = PBXBuildFile; productRef = C176A684DB57B53C84E15EA8 /* ChordProKit */; };
 		54D3C50C60282C55AC042EDF /* I'm So Blessed-chords-D.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 9DD48E38F5779A4CEB59D3CB /* I'm So Blessed-chords-D.pdf */; };
 		5A8DB10D6790B0630E697853 /* MIDIRouteMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC8109AF3F38CCE238F1A25 /* MIDIRouteMap.swift */; };
+		61439E4ACA0CF81350248FF7 /* ChordDiagram.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41BB546B7D9658C33A57F9DB /* ChordDiagram.swift */; };
 		67862352AB7F214372D0D397 /* PlaybackSyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAACFE9F57E93F1F9E143B57 /* PlaybackSyncView.swift */; };
 		70260258E1BF55CC5785D8B7 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60880C5D22BD5AC229020529 /* ContentView.swift */; };
 		764CC3F88BD4AFA421CEAD58 /* SongSelectImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DB04444EAE1AF678B06E54D /* SongSelectImport.swift */; };
@@ -70,6 +71,7 @@
 		3955B0F5E1067CE8CCC3311C /* Cornerstone-chords-C.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "Cornerstone-chords-C.pdf"; sourceTree = "<group>"; };
 		3A45187F87DBFD0FAE8A5C89 /* Amazing Grace (SongSelect 22025).chordpro */ = {isa = PBXFileReference; path = "Amazing Grace (SongSelect 22025).chordpro"; sourceTree = "<group>"; };
 		3D9E4F54F28DB33A2190982E /* StageCharts.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = StageCharts.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		41BB546B7D9658C33A57F9DB /* ChordDiagram.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChordDiagram.swift; sourceTree = "<group>"; };
 		4547B3556E743C036C9499A3 /* House Of The Lord-chords-Bb.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "House Of The Lord-chords-Bb.pdf"; sourceTree = "<group>"; };
 		471BF70D51D2B70D91E80B9E /* songselect-download.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = "songselect-download.js"; sourceTree = "<group>"; };
 		4BE29341E15A4E650FA9B446 /* NotesAndNextUp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotesAndNextUp.swift; sourceTree = "<group>"; };
@@ -184,6 +186,7 @@
 				6FC899D2D34CC1FB2328FC83 /* CCLIReport.swift */,
 				9EB08FE317E2A659031F22C2 /* ChartCapture.swift */,
 				21A29976A890994F13ECF760 /* ChartStyle.swift */,
+				41BB546B7D9658C33A57F9DB /* ChordDiagram.swift */,
 				60880C5D22BD5AC229020529 /* ContentView.swift */,
 				F610E83180951504B6804CAF /* GoogleDriveSync.swift */,
 				B310C466F38F77069111DFE3 /* Info.plist */,
@@ -340,6 +343,7 @@
 				AAC37DBF3FB2D844CC262D98 /* CCLIReport.swift in Sources */,
 				CD22E208E5EE5FB60DA6C967 /* ChartCapture.swift in Sources */,
 				463DDD461CC8CF7012C73666 /* ChartStyle.swift in Sources */,
+				61439E4ACA0CF81350248FF7 /* ChordDiagram.swift in Sources */,
 				70260258E1BF55CC5785D8B7 /* ContentView.swift in Sources */,
 				2EF3C70C5C943BC762437527 /* GoogleDriveSync.swift in Sources */,
 				8C83911A7714DB62CD44AEA4 /* LinkSession.swift in Sources */,

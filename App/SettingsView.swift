@@ -25,6 +25,7 @@ struct SettingsView: View {
     @State private var folderError: String?
 
     @State private var showCCLIReport = false
+    @AppStorage("chordTapHelp") private var chordTapHelp = true
 
     // MARK: Categories
 
@@ -70,7 +71,7 @@ struct SettingsView: View {
         /// Extra words the search matches.
         var keywords: String {
             switch self {
-            case .display: return "chart style columns theme text"
+            case .display: return "chart style columns theme text chord diagram guitar piano fingering tap"
             case .band: return "follow lead leader followers ipads scrolling"
             case .library: return "google drive sync folder icloud dropbox ccli report usage"
             case .songs: return "songselect import upgrade downloads ai convert claude photo scan api key"
@@ -170,6 +171,11 @@ struct SettingsView: View {
                     Picker("Columns", selection: $columnsRaw) {
                         ForEach(ChartColumns.allCases) { Text($0.title).tag($0.rawValue) }
                     }
+                }
+                Section {
+                    Toggle("Tap a chord to see how to play it", isOn: $chordTapHelp)
+                } footer: {
+                    Text("Shows a guitar chord box (with other shapes up the neck) or a piano keyboard. Turn off if you tap the chart to hide the toolbar during a set.")
                 }
             case .band:
                 bandSection

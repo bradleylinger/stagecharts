@@ -79,6 +79,16 @@ struct StageChartsApp: App {
 
     /// Full app on iPadOS 18+ / macOS; the band viewer on older iPads (or when chosen in Settings).
     @ViewBuilder private var root: some View {
+        #if DEBUG
+        // -demoChord G/B: only the chord popover's content (for simulator screenshots)
+        if let i = CommandLine.arguments.firstIndex(of: "-demoChord"), i + 1 < CommandLine.arguments.count {
+            ChordHelpView(chord: CommandLine.arguments[i + 1]).frame(width: 360).border(.gray)
+        } else { normalRoot }
+        #else
+        normalRoot
+        #endif
+    }
+    @ViewBuilder private var normalRoot: some View {
         if #available(iOS 18, macOS 14, *), !UserDefaults.standard.bool(forKey: "bandViewerMode") {
             ContentView()
         } else {

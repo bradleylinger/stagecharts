@@ -36,6 +36,7 @@ struct SettingsView: View {
                 }
                 bandSection
                 connectionSection
+                MIDIRoutesSection(midi: midi)
                 listenSection
                 actionsSection
                 setSlotsSection

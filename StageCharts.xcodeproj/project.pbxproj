@@ -35,6 +35,7 @@
 		8C83911A7714DB62CD44AEA4 /* LinkSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06C7608B97160325CB244EA2 /* LinkSession.swift */; };
 		8D603252BE575B1EA6BA8D10 /* Build My Life-chords-G.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 79304C82310916CD77B2D8AA /* Build My Life-chords-G.pdf */; };
 		8E36E14CEA02648C844A2E2D /* StageMIDI in Frameworks */ = {isa = PBXBuildFile; productRef = 174C2B55B804072679122DFB /* StageMIDI */; };
+		9568F080B46CC2BBB7C9EA0A /* MIDIRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F61072584D1025027F4B4F1E /* MIDIRouter.swift */; };
 		98C9B59C2C8F432C3B80A56B /* SongLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 091B996D7D21DDF52EDF2838 /* SongLibrary.swift */; };
 		9E10E39F98D2A44B25D762DC /* MIDIClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 819548E19474BA1CE0510CBE /* MIDIClock.swift */; };
 		A3229691406201F0D6245FD4 /* Cornerstone-chords-C.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 3955B0F5E1067CE8CCC3311C /* Cornerstone-chords-C.pdf */; };
@@ -97,6 +98,7 @@
 		DC4438900E261297DD1A442D /* BluetoothMIDI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothMIDI.swift; sourceTree = "<group>"; };
 		EAACFE9F57E93F1F9E143B57 /* PlaybackSyncView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackSyncView.swift; sourceTree = "<group>"; };
 		F1A5BA7E448D4DA7AF76F21D /* PDFSongs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFSongs.swift; sourceTree = "<group>"; };
+		F61072584D1025027F4B4F1E /* MIDIRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MIDIRouter.swift; sourceTree = "<group>"; };
 		F610E83180951504B6804CAF /* GoogleDriveSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleDriveSync.swift; sourceTree = "<group>"; };
 		FC1571D3EF446C71B43A48CF /* BandSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BandSync.swift; sourceTree = "<group>"; };
 		FDC6C22DF82DE8963B7F00D2 /* LinkKit.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = LinkKit.xcframework; path = Vendor/LinkKit/LinkKit.xcframework; sourceTree = "<group>"; };
@@ -186,6 +188,7 @@
 				06C7608B97160325CB244EA2 /* LinkSession.swift */,
 				819548E19474BA1CE0510CBE /* MIDIClock.swift */,
 				612802D3AC5B7FD50E44A145 /* MIDIController.swift */,
+				F61072584D1025027F4B4F1E /* MIDIRouter.swift */,
 				4BE29341E15A4E650FA9B446 /* NotesAndNextUp.swift */,
 				55FBD50C2C4893DEB5077DD6 /* OnSongImporter.swift */,
 				F1A5BA7E448D4DA7AF76F21D /* PDFSongs.swift */,
@@ -339,6 +342,7 @@
 				8C83911A7714DB62CD44AEA4 /* LinkSession.swift in Sources */,
 				9E10E39F98D2A44B25D762DC /* MIDIClock.swift in Sources */,
 				B1AF04A2A02CC3C57A1CB5D5 /* MIDIController.swift in Sources */,
+				9568F080B46CC2BBB7C9EA0A /* MIDIRouter.swift in Sources */,
 				C2FC4A842656B03ECC732E39 /* NotesAndNextUp.swift in Sources */,
 				AFAFE8471767F73ACB5F5E83 /* OnSongImporter.swift in Sources */,
 				3E5E1B8230DD2B52B1CDF795 /* PDFSongs.swift in Sources */,

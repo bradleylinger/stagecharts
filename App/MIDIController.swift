@@ -96,6 +96,18 @@ final class MIDIController: ObservableObject {
 
     /// MIDI clock: send, receive or pass through (see MIDIClock.swift).
     nonisolated let clock = MIDIClockEngine()
+    /// MIDI thru routes (input / channel → output / channel), applied on the MIDI thread.
+    nonisolated let router = MIDIRouter()
+    @Published var routes: [MIDIRoute] = (UserDefaults.standard.data(forKey: "midiRoutes")
+        .flatMap { try? JSONDecoder().decode([MIDIRoute].self, from: $0) }) ?? [] {
+        didSet {
+            UserDefaults.standard.set(try? JSONEncoder().encode(routes), forKey: "midiRoutes")
+            router.setRoutes(routes)
+        }
+    }
+    /// Inputs and outputs for the route pickers (unique ID + name with connection kind).
+    @Published private(set) var inputs: [MIDIEndpointInfo] = []
+    @Published private(set) var outputs: [MIDIEndpointInfo] = []
     /// Ableton Link (see LinkSession.swift).
     let link = LinkSession()
     @Published var clockMode: MIDIClockMode = MIDIClockMode(rawValue: UserDefaults.standard.string(forKey: "midiClockMode") ?? "") ?? .off {
@@ -147,6 +159,7 @@ final class MIDIController: ObservableObject {
         guard err == noErr else { status = "MIDI unavailable (error \(err))"; return }
 
         let clock = self.clock
+        let router = self.router
         let networkSource = MIDINetworkSession.default().sourceEndpoint()
         let receive: MIDIReceiveBlock = { [weak self] list, refCon in
             // Clock and transport are handled right here on the MIDI thread (timing matters).
@@ -155,6 +168,11 @@ final class MIDIController: ObservableObject {
                 if let forward = clock.received(status, word: word, hostTime: time) {
                     clock.output(forward, 0, !fromNetwork)      // don't echo the network's clock back to it
                 }
+            }
+            if let refCon {
+                var uid: MIDIUniqueID = 0
+                MIDIObjectGetIntegerProperty(MIDIEndpointRef(UInt(bitPattern: refCon)), kMIDIPropertyUniqueID, &uid)
+                router.route(list, sourceID: uid)
             }
             let messages = MIDIController.decode(list)
             guard !messages.isEmpty else { return }
@@ -170,6 +188,8 @@ final class MIDIController: ObservableObject {
         MIDIOutputPortCreate(client, "StageCharts Out" as CFString, &outputPort)
         MIDISourceCreateWithProtocol(client, "StageCharts" as CFString, ._1_0, &virtualSource)
         let (port, source) = (outputPort, virtualSource)
+        router.configure(port: port, appsOutput: source)
+        router.setRoutes(routes)
         clock.output = { words, time, toNetwork in
             var list = MIDIEventList()
             let packet = MIDIEventListInit(&list, ._1_0)
@@ -225,6 +245,32 @@ final class MIDIController: ObservableObject {
             names.append(Self.connectionKind(src).map { "\(n) · \($0)" } ?? n)
         }
         sourceNames = names
+
+        var ins: [MIDIEndpointInfo] = []
+        for i in 0..<MIDIGetNumberOfSources() {
+            let src = MIDIGetSource(i)
+            guard src != virtualSource else { continue }
+            ins.append(Self.info(src))
+        }
+        inputs = ins
+        var outs: [MIDIEndpointInfo] = [], map: [Int32: MIDIEndpointRef] = [:]
+        for i in 0..<MIDIGetNumberOfDestinations() {
+            let d = MIDIGetDestination(i)
+            guard d != destination else { continue }       // our own input
+            let inf = Self.info(d)
+            outs.append(inf); map[inf.id] = d
+        }
+        outputs = outs
+        router.setDestinations(map)
+    }
+
+    nonisolated static func info(_ e: MIDIEndpointRef) -> MIDIEndpointInfo {
+        var uid: MIDIUniqueID = 0
+        MIDIObjectGetIntegerProperty(e, kMIDIPropertyUniqueID, &uid)
+        var name: Unmanaged<CFString>?
+        MIDIObjectGetStringProperty(e, kMIDIPropertyDisplayName, &name)
+        let n = (name?.takeRetainedValue() as String?) ?? "MIDI \(uid)"
+        return MIDIEndpointInfo(id: uid, name: connectionKind(e).map { "\(n) · \($0)" } ?? n)
     }
 
     // MARK: Decoding

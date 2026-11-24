@@ -48,6 +48,8 @@
 	<string>1</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>StageCharts uses Bluetooth to connect to Bluetooth MIDI pedals and controllers that change songs and pages.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_apple-midi._udp</string>

@@ -18,6 +18,7 @@ targets:
       path: App/Info.plist
       properties:
         ITSAppUsesNonExemptEncryption: false
+        NSBluetoothAlwaysUsageDescription: StageCharts uses Bluetooth to connect to Bluetooth MIDI pedals and controllers that change songs and pages.
         NSCameraUsageDescription: StageCharts uses the camera to scan paper chord charts so they can be converted into transposable charts.
         NSLocalNetworkUsageDescription: StageCharts uses the local network to receive MIDI from your computer and to share set lists and song changes with your band's iPads.
         StageChartsGoogleClientID: 647215029653-gkhrq68kcvtkqu768atsmf1bvt3p3enj.apps.googleusercontent.com

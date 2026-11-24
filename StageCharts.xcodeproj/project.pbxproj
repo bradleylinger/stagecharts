@@ -51,6 +51,7 @@
 		DBC1C47D4E8C675A3CA11ED7 /* Amazing Grace (SongSelect 22025).chordpro in Resources */ = {isa = PBXBuildFile; fileRef = 3A45187F87DBFD0FAE8A5C89 /* Amazing Grace (SongSelect 22025).chordpro */; };
 		E5AF3756A5F6FDD5F84686F0 /* SetSharing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8A2F22BDB2812B05F09E872 /* SetSharing.swift */; };
 		F4354D9EC2B4C9806AE1E48E /* This Is How I Thank The Lord-chords-G.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 188AD18ACA037E4C924A1943 /* This Is How I Thank The Lord-chords-G.pdf */; };
+		F81089CCCBC3A6EF5B96D9D0 /* BluetoothMIDI.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC4438900E261297DD1A442D /* BluetoothMIDI.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -93,6 +94,7 @@
 		B8A2F22BDB2812B05F09E872 /* SetSharing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetSharing.swift; sourceTree = "<group>"; };
 		CDBFDF7E21566C93BA44FE75 /* Way Maker-chords-E.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "Way Maker-chords-E.pdf"; sourceTree = "<group>"; };
 		D2F173F76CF67C4D3EABEEB0 /* Holy Forever-chords-Bb.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "Holy Forever-chords-Bb.pdf"; sourceTree = "<group>"; };
+		DC4438900E261297DD1A442D /* BluetoothMIDI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothMIDI.swift; sourceTree = "<group>"; };
 		EAACFE9F57E93F1F9E143B57 /* PlaybackSyncView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackSyncView.swift; sourceTree = "<group>"; };
 		F1A5BA7E448D4DA7AF76F21D /* PDFSongs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFSongs.swift; sourceTree = "<group>"; };
 		F610E83180951504B6804CAF /* GoogleDriveSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleDriveSync.swift; sourceTree = "<group>"; };
@@ -174,6 +176,7 @@
 				1669DC711DD54201DAD6ED78 /* AIViews.swift */,
 				18F217431FCFBDA2D948BF85 /* Assets.xcassets */,
 				FC1571D3EF446C71B43A48CF /* BandSync.swift */,
+				DC4438900E261297DD1A442D /* BluetoothMIDI.swift */,
 				6FC899D2D34CC1FB2328FC83 /* CCLIReport.swift */,
 				9EB08FE317E2A659031F22C2 /* ChartCapture.swift */,
 				21A29976A890994F13ECF760 /* ChartStyle.swift */,
@@ -327,6 +330,7 @@
 				8AEEF86C0FFE373F1C707F09 /* AIAssistant.swift in Sources */,
 				B5F4F951EB4787FBB487E842 /* AIViews.swift in Sources */,
 				43F35AA5022AA0A6EF0ACD7C /* BandSync.swift in Sources */,
+				F81089CCCBC3A6EF5B96D9D0 /* BluetoothMIDI.swift in Sources */,
 				AAC37DBF3FB2D844CC262D98 /* CCLIReport.swift in Sources */,
 				CD22E208E5EE5FB60DA6C967 /* ChartCapture.swift in Sources */,
 				463DDD461CC8CF7012C73666 /* ChartStyle.swift in Sources */,

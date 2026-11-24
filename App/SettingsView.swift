@@ -179,10 +179,15 @@ struct SettingsView: View {
                 ForEach(midi.sourceNames, id: \.self) { Text($0) }
                 Button("Rescan") { midi.connectSources() }
             }
+            BluetoothMIDIButton { midi.connectSources() }
         } header: {
             Text("MIDI connection")
         } footer: {
-            Text("On the Mac: Audio MIDI Setup → Window → Show MIDI Network Setup → select “\(midi.networkSessionName)” under Directory → Connect. In Ableton, send to “Network Session 1”.")
+            #if os(iOS)
+            Text("On the Mac: Audio MIDI Setup → Window → Show MIDI Network Setup → select “\(midi.networkSessionName)” under Directory → Connect. In Ableton, send to “Network Session 1”. Bluetooth MIDI pedals and adapters: pair them with Bluetooth MIDI devices… (not in iOS Settings); StageCharts then listens to them like any input.")
+            #else
+            Text("On the Mac: Audio MIDI Setup → Window → Show MIDI Network Setup → select “\(midi.networkSessionName)” under Directory → Connect. In Ableton, send to “Network Session 1”. Bluetooth MIDI: Audio MIDI Setup → Window → Show MIDI Studio → Bluetooth button → Connect; StageCharts then listens to it like any input.")
+            #endif
         }
     }
 

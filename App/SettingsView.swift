@@ -77,7 +77,7 @@ struct SettingsView: View {
             case .connections: return "network session inputs usb bluetooth routes thru pass channel ableton audio midi setup"
             case .control: return "channel actions learn next previous page scroll song numbers program change set slots two-way send"
             case .tempo: return "midi clock send receive pass through ableton link bpm start stop"
-            case .monitor: return "log messages debug"
+            case .monitor: return "log messages debug routing map activity routes sent received"
             }
         }
         var section: String {
@@ -200,6 +200,7 @@ struct SettingsView: View {
                 clockSection
                 LinkSettingsSection(link: midi.link)
             case .monitor:
+                MIDIRoutingMonitor(midi: midi)
                 monitorSection
             }
         }
@@ -553,7 +554,7 @@ struct SettingsView: View {
             }
         } header: {
             HStack {
-                Text("Monitor")
+                Text("StageCharts actions")
                 Spacer()
                 Button("Clear") { midi.clearLog() }.font(.caption)
             }

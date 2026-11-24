@@ -16,13 +16,71 @@ struct MIDIRoute: Codable, Identifiable, Hashable {
     var destName = ""
     /// 0 = keep the incoming channel, else 1…16.
     var outChannel = 0
+    /// The user's names for each end, e.g. "Helix" → "FOH laptop" (empty = use the device name).
+    var sourceLabel = ""
+    var destLabel = ""
 
     static let appsOutput: Int32 = -2
 
+    init() {}
+
+    var fromTitle: String { sourceLabel.isEmpty ? sourceName : sourceLabel }
+    var toTitle: String { destLabel.isEmpty ? destName : destLabel }
+    var inChannelText: String { inChannel == 0 ? "All channels" : "Ch. \(inChannel)" }
+    var outChannelText: String { outChannel == 0 ? "Same channel" : "Ch. \(outChannel)" }
+
     var summary: String {
-        let from = sourceName + (inChannel == 0 ? "" : " ch \(inChannel)")
-        let to = destName + (outChannel == 0 ? "" : " ch \(outChannel)")
+        let from = fromTitle + (inChannel == 0 ? "" : " ch \(inChannel)")
+        let to = toTitle + (outChannel == 0 ? "" : " ch \(outChannel)")
         return "\(from) → \(to)"
+    }
+
+    // Routes saved before labels existed still load.
+    private enum CodingKeys: String, CodingKey {
+        case id, enabled, sourceID, sourceName, inChannel, destID, destName, outChannel, sourceLabel, destLabel
+    }
+    init(from d: Decoder) throws {
+        let c = try d.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
+        sourceID = try c.decodeIfPresent(Int32.self, forKey: .sourceID) ?? 0
+        sourceName = try c.decodeIfPresent(String.self, forKey: .sourceName) ?? "Any input"
+        inChannel = try c.decodeIfPresent(Int.self, forKey: .inChannel) ?? 0
+        destID = try c.decodeIfPresent(Int32.self, forKey: .destID) ?? 0
+        destName = try c.decodeIfPresent(String.self, forKey: .destName) ?? ""
+        outChannel = try c.decodeIfPresent(Int.self, forKey: .outChannel) ?? 0
+        sourceLabel = try c.decodeIfPresent(String.self, forKey: .sourceLabel) ?? ""
+        destLabel = try c.decodeIfPresent(String.self, forKey: .destLabel) ?? ""
+    }
+}
+
+/// One channel message seen by the router: where it came from and which routes sent it where.
+struct MIDIActivity: Identifiable {
+    struct Send { let routeID: UUID; let word: UInt32 }
+    let id: Int              // sequence number
+    let time: Date
+    let sourceID: Int32
+    let word: UInt32         // as received (UMP type 2)
+    let sends: [Send]        // empty = not routed
+
+    /// "Note on C4 vel 100", "CC 64 = 127", "Program 5", …  (channel shown separately)
+    static func describe(_ w: UInt32) -> String {
+        let status = (w >> 20) & 0xF, d1 = Int((w >> 8) & 0x7F), d2 = Int(w & 0x7F)
+        switch status {
+        case 0x8: return "Note off \(noteName(d1))"
+        case 0x9: return d2 == 0 ? "Note off \(noteName(d1))" : "Note on \(noteName(d1)) vel \(d2)"
+        case 0xA: return "Aftertouch \(noteName(d1)) \(d2)"
+        case 0xB: return "CC \(d1) = \(d2)"
+        case 0xC: return "Program \(d1 + 1)"
+        case 0xD: return "Channel pressure \(d1)"
+        case 0xE: return "Pitch bend \((d2 << 7 | d1) - 8192)"
+        default: return String(format: "%08X", w)
+        }
+    }
+    static func channel(_ w: UInt32) -> Int { Int((w >> 16) & 0xF) + 1 }
+    static func noteName(_ n: Int) -> String {
+        let names = ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"]
+        return "\(names[n % 12])\(n / 12 - 1)"
     }
 }
 
@@ -39,6 +97,28 @@ final class MIDIRouter: @unchecked Sendable {
     private var destinations: [Int32: MIDIEndpointRef] = [:]
     private var port = MIDIPortRef()
     private var appsOutput = MIDIEndpointRef()
+    // Activity for the monitor: the last messages plus per-route / per-input totals.
+    private var recent: [MIDIActivity] = []
+    private var seq = 0
+    private var routeCounts: [UUID: Int] = [:]
+    private var routeLast: [UUID: Date] = [:]
+    private var sourceLast: [Int32: Date] = [:]
+    private static let keep = 200
+
+    struct Snapshot {
+        var seq = 0
+        var recent: [MIDIActivity] = []
+        var routeCounts: [UUID: Int] = [:]
+        var routeLast: [UUID: Date] = [:]
+        var sourceLast: [Int32: Date] = [:]
+    }
+    func snapshot() -> Snapshot {
+        lock.lock(); defer { lock.unlock() }
+        return Snapshot(seq: seq, recent: recent, routeCounts: routeCounts, routeLast: routeLast, sourceLast: sourceLast)
+    }
+    func clearActivity() {
+        lock.lock(); recent = []; routeCounts = [:]; routeLast = [:]; sourceLast = [:]; seq += 1; lock.unlock()
+    }
 
     func configure(port: MIDIPortRef, appsOutput: MIDIEndpointRef) {
         lock.lock(); self.port = port; self.appsOutput = appsOutput; lock.unlock()
@@ -52,7 +132,6 @@ final class MIDIRouter: @unchecked Sendable {
         let active = routes.filter { $0.sourceID == 0 ? sourceID != nil : $0.sourceID == sourceID }
         let (port, apps, dests) = (port, appsOutput, destinations)
         lock.unlock()
-        guard !active.isEmpty else { return }
 
         // MIDI 1.0 channel-voice words (UMP type 2); the channel is the low nibble of the status byte.
         var words: [UInt32] = []
@@ -69,13 +148,17 @@ final class MIDIRouter: @unchecked Sendable {
             }
         }
         guard !words.isEmpty else { return }
+        var sent: [[MIDIActivity.Send]] = Array(repeating: [], count: words.count)
 
         for r in active {
-            let out: [UInt32] = words.compactMap { w in
+            var out: [UInt32] = []
+            for (i, w) in words.enumerated() {
                 let ch = Int((w >> 16) & 0x0F) + 1
-                if r.inChannel != 0 && ch != r.inChannel { return nil }
-                guard r.outChannel != 0 else { return w & 0xF0FF_FFFF }     // group 0, same channel
-                return (w & 0xF0F0_FFFF) | (UInt32(r.outChannel - 1) << 16)
+                if r.inChannel != 0 && ch != r.inChannel { continue }
+                let o = r.outChannel == 0 ? w & 0xF0FF_FFFF                  // group 0, same channel
+                    : (w & 0xF0F0_FFFF) | (UInt32(r.outChannel - 1) << 16)
+                out.append(o)
+                sent[i].append(.init(routeID: r.id, word: o))
             }
             // A MIDIEventList holds one packet of up to 64 words; send in chunks.
             for start in stride(from: 0, to: out.count, by: 60) {
@@ -90,6 +173,17 @@ final class MIDIRouter: @unchecked Sendable {
                 }
             }
         }
+
+        let now = Date()
+        lock.lock()
+        for (i, w) in words.enumerated() {
+            seq += 1
+            recent.append(MIDIActivity(id: seq, time: now, sourceID: sourceID ?? 0, word: w, sends: sent[i]))
+            for s in sent[i] { routeCounts[s.routeID, default: 0] += 1; routeLast[s.routeID] = now }
+        }
+        if recent.count > Self.keep { recent.removeFirst(recent.count - Self.keep) }
+        if let sourceID { sourceLast[sourceID] = now }
+        lock.unlock()
     }
 }
 
@@ -106,7 +200,12 @@ struct MIDIRoutesSection: View {
             ForEach($midi.routes) { $r in
                 HStack {
                     Toggle(isOn: $r.enabled) {
-                        Text(r.summary).lineLimit(2)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(r.summary).lineLimit(2)
+                            if !r.sourceLabel.isEmpty || !r.destLabel.isEmpty {
+                                Text("\(r.sourceName) → \(r.destName)").font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
                     }
                     Button("Edit") { editing = r }.buttonStyle(.borderless)
                 }
@@ -151,6 +250,7 @@ struct MIDIRouteEditor: View {
         SheetNavigation {
             Form {
                 Section("MIDI from") {
+                    TextField("Name", text: $route.sourceLabel, prompt: Text("e.g. Helix, Keys pedal"))
                     Picker("Input", selection: $route.sourceID) {
                         Text("Any input").tag(Int32(0))
                         ForEach(inputs) { Text($0.name).tag($0.id) }
@@ -163,7 +263,8 @@ struct MIDIRouteEditor: View {
                         ForEach(1...16, id: \.self) { Text("Ch. \($0)").tag($0) }
                     }
                 }
-                Section("MIDI to") {
+                Section {
+                    TextField("Name", text: $route.destLabel, prompt: Text("e.g. FOH laptop, Ableton"))
                     Picker("Output", selection: $route.destID) {
                         ForEach(outputs) { Text($0.name).tag($0.id) }
                         Text("StageCharts output (apps on this device)").tag(MIDIRoute.appsOutput)
@@ -175,6 +276,10 @@ struct MIDIRouteEditor: View {
                         Text("Same as incoming").tag(0)
                         ForEach(1...16, id: \.self) { Text("Ch. \($0)").tag($0) }
                     }
+                } header: {
+                    Text("MIDI to")
+                } footer: {
+                    Text("Names are yours: they label this route in Settings and in MIDI monitor's routing map. Leave blank to show the device name.")
                 }
             }
             #if os(macOS)
@@ -186,6 +291,8 @@ struct MIDIRouteEditor: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         var r = route
+                        r.sourceLabel = r.sourceLabel.trimmingCharacters(in: .whitespaces)
+                        r.destLabel = r.destLabel.trimmingCharacters(in: .whitespaces)
                         r.sourceName = r.sourceID == 0 ? "Any input"
                             : inputs.first(where: { $0.id == r.sourceID }).map { MIDIRoutesSection.plainName($0.name) } ?? r.sourceName
                         r.destName = r.destID == MIDIRoute.appsOutput ? "StageCharts output"

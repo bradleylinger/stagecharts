@@ -256,6 +256,15 @@ struct SettingsView: View {
             Button(library.usesCustomFolder ? "Choose a different folder…" : "Use a shared folder (iCloud Drive, Dropbox…)…") {
                 pickingFolder = true
             }
+            .fileImporter(isPresented: $pickingFolder, allowedContentTypes: [.folder]) { result in
+                switch result {
+                case .success(let url):
+                    do { try library.useFolder(url); folderError = nil }
+                    catch { folderError = "Couldn't use that folder: \(error.localizedDescription)" }
+                case .failure(let error):
+                    folderError = error.localizedDescription
+                }
+            }
             if library.usesCustomFolder {
                 Button("Refresh from folder") { library.reloadAll() }
                 Button("Use this device's storage instead") { library.useDeviceStorage() }
@@ -265,15 +274,6 @@ struct SettingsView: View {
             Text("Library folder (advanced)")
         } footer: {
             Text("Keep the library in a folder synced by another service, such as iCloud Drive or Dropbox. For Google Drive, use “Sign in with Google” above instead.")
-        }
-        .fileImporter(isPresented: $pickingFolder, allowedContentTypes: [.folder]) { result in
-            switch result {
-            case .success(let url):
-                do { try library.useFolder(url); folderError = nil }
-                catch { folderError = "Couldn't use that folder: \(error.localizedDescription)" }
-            case .failure(let error):
-                folderError = error.localizedDescription
-            }
         }
     }
 
@@ -458,12 +458,12 @@ struct SettingsView: View {
             }
             ForEach(mapped) { file in songMappingRow(file) }
             Button("Assign a song…", systemImage: "plus.circle") { pickingSong = true }
+                .sheet(isPresented: $pickingSong) { songPicker }
         } header: {
             Text("Songs with their own MIDI message")
         } footer: {
             Text("For songs Ableton or Playback always select with the same message (e.g. a Playback song-start cue). Learn: tap, then fire the cue. Any CC, note or Program Change works.")
         }
-        .sheet(isPresented: $pickingSong) { songPicker }
     }
 
     private func songMappingRow(_ file: SongFile) -> some View {

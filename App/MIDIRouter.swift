@@ -112,17 +112,18 @@ struct MIDIRoutesSection: View {
                 }
             }
             .onDelete { midi.routes.remove(atOffsets: $0) }
+            // The sheet hangs off this one row: on a Section it would be attached to every row.
             Button("Add route…") { editing = newRoute() }
+                .sheet(item: $editing) { r in
+                    MIDIRouteEditor(route: r, inputs: midi.inputs, outputs: midi.outputs) { saved in
+                        if let i = midi.routes.firstIndex(where: { $0.id == saved.id }) { midi.routes[i] = saved }
+                        else { midi.routes.append(saved) }
+                    }
+                }
         } header: {
             Text("MIDI routes")
         } footer: {
             Text("Pass MIDI from a device to another output, like an Ableton MIDI track: e.g. a Bluetooth pedal → Network Session 1 on channel 3, so another iPad or computer receives it. Notes, CCs, program changes and pitch bend are passed; StageCharts still reacts to them too. Don't route an output back into its own input.")
-        }
-        .sheet(item: $editing) { r in
-            MIDIRouteEditor(route: r, inputs: midi.inputs, outputs: midi.outputs) { saved in
-                if let i = midi.routes.firstIndex(where: { $0.id == saved.id }) { midi.routes[i] = saved }
-                else { midi.routes.append(saved) }
-            }
         }
     }
 

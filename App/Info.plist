@@ -60,6 +60,8 @@
 	<string>StageCharts uses the camera to scan paper chord charts so they can be converted into transposable charts.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>StageCharts uses the local network to receive MIDI from your computer and to share set lists and song changes with your band's iPads.</string>
+	<key>SUAutomaticallyUpdate</key>
+	<true/>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUFeedURL</key>
@@ -67,7 +69,7 @@
 	<key>SUPublicEDKey</key>
 	<string>veNPr30O/xROuQOvXh30sZi07N8/MdBI7z2dR9k/CMI=</string>
 	<key>SUScheduledCheckInterval</key>
-	<integer>86400</integer>
+	<integer>3600</integer>
 	<key>StageChartsGoogleClientID</key>
 	<string>647215029653-gkhrq68kcvtkqu768atsmf1bvt3p3enj.apps.googleusercontent.com</string>
 	<key>UTExportedTypeDeclarations</key>

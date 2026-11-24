@@ -12,7 +12,7 @@ struct ContentView: View {
     @EnvironmentObject var importer: AutoImporter
     @State private var showUpgradeQueue = false
     @AppStorage("activeSetID") private var activeSetRaw = ""     // "" = Library
-    @State private var showSettings = false
+    @State private var showSettings = ProcessInfo.processInfo.arguments.contains("-openSettings")   // testing
     @State private var selection: String?          // song id (library) or "item:<uuid>" (set)
     @State private var search = ""
     @State private var formatFilter = FormatFilter.all
@@ -185,7 +185,12 @@ struct ContentView: View {
                 }
             }
         }
-        .sheet(isPresented: $showSettings) { SettingsView() }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+                #if os(iOS)
+                .presentationSizing(.page)
+                #endif
+        }
         .sheet(isPresented: $showUpgradeQueue) { UpgradeQueueView() }
         .sheet(isPresented: Binding(get: { importer.browserURL != nil && !UserDefaults.standard.bool(forKey: "songSelectInBrowser") },
                                     set: { if !$0 { importer.browserURL = nil; importer.stopQueue() } })) {

@@ -26,51 +26,95 @@ struct SettingsView: View {
 
     @State private var showCCLIReport = false
 
+    // MARK: Categories
+
+    enum Category: String, CaseIterable, Identifiable, Hashable {
+        case display, band, library, songs, connections, control, tempo, monitor
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .display: return "Display"
+            case .band: return "Band"
+            case .library: return "Library & sync"
+            case .songs: return "SongSelect & AI"
+            case .connections: return "MIDI connections"
+            case .control: return "MIDI control"
+            case .tempo: return "Tempo sync"
+            case .monitor: return "MIDI monitor"
+            }
+        }
+        var icon: String {
+            switch self {
+            case .display: return "textformat.size"
+            case .band: return "person.3.fill"
+            case .library: return "externaldrive.fill.badge.icloud"
+            case .songs: return "music.note.list"
+            case .connections: return "cable.connector"
+            case .control: return "pianokeys"
+            case .tempo: return "metronome.fill"
+            case .monitor: return "waveform.path.ecg"
+            }
+        }
+        var color: Color {
+            switch self {
+            case .display: return .gray
+            case .band: return .green
+            case .library: return .blue
+            case .songs: return .purple
+            case .connections: return .orange
+            case .control: return .pink
+            case .tempo: return .red
+            case .monitor: return .teal
+            }
+        }
+        /// Extra words the search matches.
+        var keywords: String {
+            switch self {
+            case .display: return "chart style columns theme text"
+            case .band: return "follow lead leader followers ipads scrolling"
+            case .library: return "google drive sync folder icloud dropbox ccli report usage"
+            case .songs: return "songselect import upgrade downloads ai convert claude photo scan api key"
+            case .connections: return "network session inputs usb bluetooth routes thru pass channel ableton audio midi setup"
+            case .control: return "channel actions learn next previous page scroll song numbers program change set slots two-way send"
+            case .tempo: return "midi clock send receive pass through ableton link bpm start stop"
+            case .monitor: return "log messages debug"
+            }
+        }
+        var section: String {
+            switch self {
+            case .display, .band, .library, .songs: return "StageCharts"
+            case .connections, .control, .tempo, .monitor: return "MIDI"
+            }
+        }
+    }
+
+    @State private var category: Category?
+    @State private var search = ""
+    private var visibleCategories: [Category] {
+        let q = search.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !q.isEmpty else { return Category.allCases }
+        return Category.allCases.filter { ($0.title + " " + $0.keywords).lowercased().contains(q) }
+    }
+
     var body: some View {
-        NavigationStack {
-            Form {
-                if let notice = midi.learnNotice {
-                    Section {
-                        Label(notice, systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-                    }
-                }
-                bandSection
-                connectionSection
-                MIDIRoutesSection(midi: midi)
-                listenSection
-                actionsSection
-                setSlotsSection
-                sendSection
-                clockSection
-                LinkSettingsSection(link: midi.link)
-                songsSection
-                monitorSection
-                GoogleDriveSection()
-                AISettingsSection()
-                songSelectSection
-                if #available(iOS 16.0, *) {
-                Section {
-                    Button("CCLI usage report…") { showCCLIReport = true }
-                } footer: {
-                    Text("Songs used in your set lists over a period, with CCLI numbers, ready for your CCLI copy report.")
-                }
-                }
-                // The folder option is for iCloud Drive / Dropbox users; hidden while Google sync is on.
-                if !googleAuth.isSignedIn { librarySection }
-                Section("Display") {
-                    Picker("Chart style", selection: $styleRaw) {
-                        ForEach(ChartStyle.allCases) { Text($0.title).tag($0.rawValue) }
-                    }
-                    Picker("Columns", selection: $columnsRaw) {
-                        ForEach(ChartColumns.allCases) { Text($0.title).tag($0.rawValue) }
+        NavigationSplitView {
+            List(selection: $category) {
+                ForEach(["StageCharts", "MIDI"], id: \.self) { group in
+                    let items = visibleCategories.filter { $0.section == group }
+                    if !items.isEmpty {
+                        Section(group) {
+                            ForEach(items) { c in
+                                NavigationLink(value: c) { CategoryLabel(category: c) }
+                            }
+                        }
                     }
                 }
             }
-            .formStyle(.grouped)
+            .searchable(text: $search, placement: .sidebar, prompt: "Search settings")
             .navigationTitle("Settings")
-            .sheet(isPresented: $showCCLIReport) {
-                if #available(iOS 16.0, *) { CCLIReportView() }
-            }
+            #if os(macOS)
+            .navigationSplitViewColumnWidth(min: 200, ideal: 220)
+            #endif
             .toolbar {
                 if showsDoneButton {
                     ToolbarItem(placement: .confirmationAction) {
@@ -78,11 +122,92 @@ struct SettingsView: View {
                     }
                 }
             }
+        } detail: {
+            NavigationStack {
+                if let category {
+                    detail(category)
+                } else {
+                    Text("Choose a category").foregroundStyle(.secondary)
+                }
+            }
+        }
+        .onAppear {
+            guard category == nil else { return }
+            if let i = ProcessInfo.processInfo.arguments.firstIndex(of: "-settingsCategory"),       // testing
+               i + 1 < ProcessInfo.processInfo.arguments.count,
+               let c = Category(rawValue: ProcessInfo.processInfo.arguments[i + 1]) { category = c; return }
+            #if os(iOS)
+            if UIDevice.current.userInterfaceIdiom != .phone { category = .display }
+            #else
+            category = .display
+            #endif
+        }
+        .onChange(of: search) { _, _ in
+            if let first = visibleCategories.first, !visibleCategories.contains(where: { $0 == category }) { category = first }
+        }
+        .sheet(isPresented: $showCCLIReport) {
+            if #available(iOS 16.0, *) { CCLIReportView() }
         }
         #if os(macOS)
-        .frame(minWidth: 560, minHeight: 680)
+        .frame(minWidth: 820, minHeight: 620)
         #endif
         .onDisappear { midi.learning = nil }
+    }
+
+    @ViewBuilder private func detail(_ c: Category) -> some View {
+        Form {
+            if let notice = midi.learnNotice {
+                Section {
+                    Label(notice, systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                }
+            }
+            switch c {
+            case .display:
+                Section("Charts") {
+                    Picker("Chart style", selection: $styleRaw) {
+                        ForEach(ChartStyle.allCases) { Text($0.title).tag($0.rawValue) }
+                    }
+                    Picker("Columns", selection: $columnsRaw) {
+                        ForEach(ChartColumns.allCases) { Text($0.title).tag($0.rawValue) }
+                    }
+                }
+            case .band:
+                bandSection
+            case .library:
+                GoogleDriveSection()
+                // The folder option is for iCloud Drive / Dropbox users; hidden while Google sync is on.
+                if !googleAuth.isSignedIn { librarySection }
+                Section {
+                    Button("CCLI usage report…") { showCCLIReport = true }
+                } header: {
+                    Text("Reports")
+                } footer: {
+                    Text("Songs used in your set lists over a period, with CCLI numbers, ready for your CCLI copy report.")
+                }
+            case .songs:
+                songSelectSection
+                AISettingsSection()
+            case .connections:
+                connectionSection
+                MIDIRoutesSection(midi: midi)
+            case .control:
+                listenSection
+                actionsSection
+                setSlotsSection
+                songsSection
+                sendSection
+            case .tempo:
+                clockSection
+                LinkSettingsSection(link: midi.link)
+            case .monitor:
+                monitorSection
+            }
+        }
+        .formStyle(.grouped)
+        .navigationTitle(c.title)
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 
     // MARK: Sections
@@ -447,4 +572,21 @@ struct SettingsView: View {
         .tint(active ? .orange : .gray)
     }
 
+}
+
+/// Sidebar row: a colored rounded icon tile and the category name (like System Settings).
+@available(iOS 18, macOS 14, *)
+private struct CategoryLabel: View {
+    let category: SettingsView.Category
+    var body: some View {
+        Label {
+            Text(category.title)
+        } icon: {
+            Image(systemName: category.icon)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 24, height: 24)
+                .background(category.color.gradient, in: RoundedRectangle(cornerRadius: 6))
+        }
+    }
 }

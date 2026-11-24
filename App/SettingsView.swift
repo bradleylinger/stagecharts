@@ -184,9 +184,9 @@ struct SettingsView: View {
             Text("MIDI connection")
         } footer: {
             #if os(iOS)
-            Text("On the Mac: Audio MIDI Setup → Window → Show MIDI Network Setup → select “\(midi.networkSessionName)” under Directory → Connect. In Ableton, send to “Network Session 1”. Bluetooth MIDI pedals and adapters: pair them with Bluetooth MIDI devices… (not in iOS Settings); StageCharts then listens to them like any input.")
+            Text("On the Mac: Audio MIDI Setup → Window → Show MIDI Network Setup → select “\(midi.networkSessionName)” under Directory → Connect. In Ableton, send to “Network Session 1”. USB MIDI (USB‑C cable or camera adapter) works as soon as it's plugged in. Bluetooth MIDI pedals and adapters: pair them with Bluetooth MIDI devices… (not in iOS Settings). StageCharts listens to every input.")
             #else
-            Text("On the Mac: Audio MIDI Setup → Window → Show MIDI Network Setup → select “\(midi.networkSessionName)” under Directory → Connect. In Ableton, send to “Network Session 1”. Bluetooth MIDI: Audio MIDI Setup → Window → Show MIDI Studio → Bluetooth button → Connect; StageCharts then listens to it like any input.")
+            Text("On the Mac: Audio MIDI Setup → Window → Show MIDI Network Setup → select “\(midi.networkSessionName)” under Directory → Connect. In Ableton, send to “Network Session 1”. USB MIDI works as soon as it's plugged in. Bluetooth MIDI: Audio MIDI Setup → Window → Show MIDI Studio → Bluetooth button → Connect. StageCharts listens to every input.")
             #endif
         }
     }

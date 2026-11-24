@@ -192,6 +192,22 @@ final class MIDIController: ObservableObject {
     }
 
     /// Connects the input port to every MIDI source (re-run when devices appear/disappear).
+    /// USB / Bluetooth / Network / IAC / app, from the driver that owns the endpoint's device.
+    nonisolated static func connectionKind(_ endpoint: MIDIEndpointRef) -> String? {
+        var entity = MIDIEntityRef(), device = MIDIDeviceRef()
+        guard MIDIEndpointGetEntity(endpoint, &entity) == noErr, MIDIEntityGetDevice(entity, &device) == noErr else {
+            return "app"      // virtual source published by another app (e.g. Ableton, Playback)
+        }
+        var owner: Unmanaged<CFString>?
+        MIDIObjectGetStringProperty(device, kMIDIPropertyDriverOwner, &owner)
+        let o = (owner?.takeRetainedValue() as String?) ?? ""
+        if o.contains("USB") { return "USB" }
+        if o.contains("Bluetooth") || o.contains("BLE") { return "Bluetooth" }
+        if o.contains("RTP") || o.contains("Network") { return "Network" }
+        if o.contains("IAC") { return "IAC" }
+        return nil
+    }
+
     func connectSources() {
         var names: [String] = []
         for i in 0..<MIDIGetNumberOfSources() {
@@ -205,7 +221,8 @@ final class MIDIController: ObservableObject {
             }
             var name: Unmanaged<CFString>?
             MIDIObjectGetStringProperty(src, kMIDIPropertyDisplayName, &name)
-            names.append((name?.takeRetainedValue() as String?) ?? "Source \(i + 1)")
+            let n = (name?.takeRetainedValue() as String?) ?? "Source \(i + 1)"
+            names.append(Self.connectionKind(src).map { "\(n) · \($0)" } ?? n)
         }
         sourceNames = names
     }

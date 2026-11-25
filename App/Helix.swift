@@ -155,7 +155,16 @@ struct HelixCatalog {
         // their own, send/returns and I/O are left out.
         let kinds: [String: Int] = ["amp": 3, "delay": 7, "reverb": 7, "distortion": 0, "compressor": 0, "modulation": 0,
                                     "eq": 0, "filter": 0, "pitch-synth": 0, "gate": 0]
-        for (id, def) in defs where models[id] == nil && Self.usable(id) {
+        let data = skeleton["data"] as? JSON
+        let device = data?["device"] as? Int ?? 2162944
+        let version = data?["device_version"] as? Int ?? 0
+        // A model newer than the player's Helix Native (per its "devices" list) is left out.
+        func supported(_ m: JSON) -> Bool {
+            guard let list = m["devices"] as? [JSON],
+                  let need = list.first(where: { ($0["id"] as? Int) == device })?["version"] as? String else { return true }
+            return Int(need.replacingOccurrences(of: "0x", with: ""), radix: 16).map { $0 <= version } ?? true
+        }
+        for (id, def) in defs where models[id] == nil && Self.usable(id) && supported(def.model) {
             guard let type = kinds[def.file] else { continue }
             var block = Self.defaults(def.model)
             block["@model"] = id
@@ -166,7 +175,7 @@ struct HelixCatalog {
             block["@position"] = 0
             var linked: [String: JSON] = [:]
             if def.file == "amp" {
-                guard let cabID = def.model["ircablink"] as? String, let cab = defs[cabID] else { continue }
+                guard let cabID = def.model["ircablink"] as? String, let cab = defs[cabID], supported(cab.model) else { continue }
                 var c = Self.defaults(cab.model)
                 c["@model"] = cabID
                 c["@enabled"] = true

@@ -11,6 +11,7 @@ struct ContentView: View {
     @EnvironmentObject var band: BandSync
     @EnvironmentObject var importer: AutoImporter
     @State private var showUpgradeQueue = false
+    @State private var buildingSetFromText = ProcessInfo.processInfo.arguments.contains("-setFromText")   // testing
     @AppStorage("activeSetID") private var activeSetRaw = ""     // "" = Library
     @State private var showSettings = ProcessInfo.processInfo.arguments.contains("-openSettings")   // testing
     @State private var selection: String?          // song id (library) or "item:<uuid>" (set)
@@ -115,6 +116,7 @@ struct ContentView: View {
                             showUpgradeQueue = true
                         }
                         Button("New set list…", systemImage: "music.note.list") { pendingSongForNewSet = nil; startNewSet() }
+                        Button("New set list from text…", systemImage: "sparkles") { buildingSetFromText = true }
                         if let set = activeSet {
                             Divider()
                             ShareLink(item: SharedSetFile(name: set.name) { try library.exportSetBundle(set) },
@@ -192,6 +194,9 @@ struct ContentView: View {
                 #endif
         }
         .sheet(isPresented: $showUpgradeQueue) { UpgradeQueueView() }
+        .sheet(isPresented: $buildingSetFromText) {
+            AISetBuilderView { id in activeSetRaw = id.uuidString }
+        }
         .sheet(isPresented: Binding(get: { importer.browserURL != nil && !UserDefaults.standard.bool(forKey: "songSelectInBrowser") },
                                     set: { if !$0 { importer.browserURL = nil; importer.stopQueue() } })) {
             SongSelectBrowser(start: importer.browserURL ?? SongSelect.home)

@@ -51,6 +51,7 @@
 		CBCB2F39D24FA7DF8E365F10 /* Printing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E9BDFB037C4244B90B476FC /* Printing.swift */; };
 		CD22E208E5EE5FB60DA6C967 /* ChartCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EB08FE317E2A659031F22C2 /* ChartCapture.swift */; };
 		D53480A34A8E7338D5F6A057 /* Way Maker-chords-E.pdf in Resources */ = {isa = PBXBuildFile; fileRef = CDBFDF7E21566C93BA44FE75 /* Way Maker-chords-E.pdf */; };
+		D77A2543056C3F26BD86F23C /* AISetBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4EF5C844EA62ACC9B49F009 /* AISetBuilder.swift */; };
 		DBC1C47D4E8C675A3CA11ED7 /* Amazing Grace (SongSelect 22025).chordpro in Resources */ = {isa = PBXBuildFile; fileRef = 3A45187F87DBFD0FAE8A5C89 /* Amazing Grace (SongSelect 22025).chordpro */; };
 		E5AF3756A5F6FDD5F84686F0 /* SetSharing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8A2F22BDB2812B05F09E872 /* SetSharing.swift */; };
 		F4354D9EC2B4C9806AE1E48E /* This Is How I Thank The Lord-chords-G.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 188AD18ACA037E4C924A1943 /* This Is How I Thank The Lord-chords-G.pdf */; };
@@ -95,6 +96,7 @@
 		A6B63466886982F071B7BC91 /* Goodness Of God-chords-Ab.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "Goodness Of God-chords-Ab.pdf"; sourceTree = "<group>"; };
 		AC0A2D639B81A1C3613FF5C3 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		B310C466F38F77069111DFE3 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		B4EF5C844EA62ACC9B49F009 /* AISetBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AISetBuilder.swift; sourceTree = "<group>"; };
 		B8A2F22BDB2812B05F09E872 /* SetSharing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetSharing.swift; sourceTree = "<group>"; };
 		CDBFDF7E21566C93BA44FE75 /* Way Maker-chords-E.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "Way Maker-chords-E.pdf"; sourceTree = "<group>"; };
 		D2F173F76CF67C4D3EABEEB0 /* Holy Forever-chords-Bb.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "Holy Forever-chords-Bb.pdf"; sourceTree = "<group>"; };
@@ -179,6 +181,7 @@
 			isa = PBXGroup;
 			children = (
 				7240A0591BF363D3AB174FED /* AIAssistant.swift */,
+				B4EF5C844EA62ACC9B49F009 /* AISetBuilder.swift */,
 				1669DC711DD54201DAD6ED78 /* AIViews.swift */,
 				18F217431FCFBDA2D948BF85 /* Assets.xcassets */,
 				FC1571D3EF446C71B43A48CF /* BandSync.swift */,
@@ -337,6 +340,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				8AEEF86C0FFE373F1C707F09 /* AIAssistant.swift in Sources */,
+				D77A2543056C3F26BD86F23C /* AISetBuilder.swift in Sources */,
 				B5F4F951EB4787FBB487E842 /* AIViews.swift in Sources */,
 				43F35AA5022AA0A6EF0ACD7C /* BandSync.swift in Sources */,
 				F81089CCCBC3A6EF5B96D9D0 /* BluetoothMIDI.swift in Sources */,

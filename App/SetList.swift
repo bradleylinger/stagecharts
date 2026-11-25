@@ -6,6 +6,8 @@ struct SetItem: Codable, Identifiable, Hashable {
     var songID: String
     var semitones: Int? = nil
     var capo: Int? = nil
+    /// Helix Native snapshot (0–7) recalled when this song opens (see Helix.swift).
+    var helixSnapshot: Int? = nil
 }
 
 struct SetList: Codable, Identifiable, Hashable {
@@ -13,6 +15,8 @@ struct SetList: Codable, Identifiable, Hashable {
     var name: String
     var date: Date
     var items: [SetItem]
+    /// The Helix Native preset made for this set (file name in the library's Helix folder).
+    var helixPreset: String? = nil
 }
 
 extension JSONEncoder {

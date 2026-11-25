@@ -30,7 +30,7 @@ struct SettingsView: View {
     // MARK: Categories
 
     enum Category: String, CaseIterable, Identifiable, Hashable {
-        case display, band, library, songs, connections, control, tempo, monitor
+        case display, band, library, songs, helix, connections, control, tempo, monitor
         var id: String { rawValue }
         var title: String {
             switch self {
@@ -38,6 +38,7 @@ struct SettingsView: View {
             case .band: return "Band"
             case .library: return "Library & sync"
             case .songs: return "SongSelect & AI"
+            case .helix: return "Helix"
             case .connections: return "MIDI connections"
             case .control: return "MIDI control"
             case .tempo: return "Tempo sync"
@@ -50,6 +51,7 @@ struct SettingsView: View {
             case .band: return "person.3.fill"
             case .library: return "externaldrive.fill.badge.icloud"
             case .songs: return "music.note.list"
+            case .helix: return "guitars"
             case .connections: return "cable.connector"
             case .control: return "pianokeys"
             case .tempo: return "metronome.fill"
@@ -62,6 +64,7 @@ struct SettingsView: View {
             case .band: return .green
             case .library: return .blue
             case .songs: return .purple
+            case .helix: return .indigo
             case .connections: return .orange
             case .control: return .pink
             case .tempo: return .red
@@ -75,6 +78,7 @@ struct SettingsView: View {
             case .band: return "follow lead leader followers ipads scrolling"
             case .library: return "google drive sync folder icloud dropbox ccli report usage"
             case .songs: return "songselect import upgrade downloads ai convert claude photo scan api key"
+            case .helix: return "line 6 helix native guitar preset patch tone amp snapshot hlx ai"
             case .connections: return "network session inputs usb bluetooth routes thru pass channel ableton audio midi setup"
             case .control: return "channel actions learn next previous page scroll song numbers program change set slots two-way send"
             case .tempo: return "midi clock send receive pass through ableton link bpm start stop"
@@ -83,7 +87,7 @@ struct SettingsView: View {
         }
         var section: String {
             switch self {
-            case .display, .band, .library, .songs: return "StageCharts"
+            case .display, .band, .library, .songs, .helix: return "StageCharts"
             case .connections, .control, .tempo, .monitor: return "MIDI"
             }
         }
@@ -193,6 +197,8 @@ struct SettingsView: View {
             case .songs:
                 songSelectSection
                 AISettingsSection()
+            case .helix:
+                HelixSettingsSection()
             case .connections:
                 connectionSection
                 MIDIRoutesSection(midi: midi)

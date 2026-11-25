@@ -137,6 +137,9 @@ final class SongLibrary: ObservableObject {
         let targetInk = url.appendingPathComponent("Ink", isDirectory: true)
         try? fm.createDirectory(at: targetInk, withIntermediateDirectories: true)
         copyMissing(from: inkFolder, to: targetInk)
+        let targetHelix = url.appendingPathComponent("Helix", isDirectory: true)
+        try? fm.createDirectory(at: targetHelix, withIntermediateDirectories: true)
+        copyMissing(from: helixFolder, to: targetHelix)
 
         // Merge settings and set lists (shared folder wins on conflicts).
         let mySettings = settings, mySets = setLists
@@ -167,9 +170,9 @@ final class SongLibrary: ObservableObject {
         let dest = Self.deviceBase.appendingPathComponent("Songs", isDirectory: true)
         let destPDF = dest.appendingPathComponent("PDF", isDirectory: true)
         let destInk = Self.deviceBase.appendingPathComponent("Ink", isDirectory: true)
-        try? fm.createDirectory(at: destPDF, withIntermediateDirectories: true)
-        try? fm.createDirectory(at: destInk, withIntermediateDirectories: true)
-        for (src, dst) in [(folder, dest), (pdfFolder, destPDF), (inkFolder, destInk)] {
+        let destHelix = Self.deviceBase.appendingPathComponent("Helix", isDirectory: true)
+        for d in [destPDF, destInk, destHelix] { try? fm.createDirectory(at: d, withIntermediateDirectories: true) }
+        for (src, dst) in [(folder, dest), (pdfFolder, destPDF), (inkFolder, destInk), (helixFolder, destHelix)] {
             for name in (try? fm.contentsOfDirectory(atPath: src.path)) ?? [] {
                 let s = src.appendingPathComponent(name), d = dst.appendingPathComponent(name)
                 var isDir: ObjCBool = false

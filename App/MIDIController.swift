@@ -395,6 +395,23 @@ final class MIDIController: ObservableObject {
         record("→ sent " + desc, "Song \(position) picked here")
     }
 
+    /// Helix Native: recall snapshot `index` (0–7) with CC 69 on the Helix channel, to the
+    /// "StageCharts" output (apps on this Mac, e.g. Ableton) and the network session.
+    func sendHelixSnapshot(_ index: Int) {
+        let defaults = UserDefaults.standard
+        guard defaults.object(forKey: "helixSendSnapshots") == nil || defaults.bool(forKey: "helixSendSnapshots") else { return }
+        let channel = max(1, min(16, defaults.object(forKey: "helixChannel") as? Int ?? 1))
+        let status = UInt32(0xB0 | (channel - 1))
+        var w = (UInt32(0x2) << 28) | (status << 16) | (UInt32(69) << 8) | UInt32(max(0, min(7, index)))
+        var list = MIDIEventList()
+        let packet = MIDIEventListInit(&list, ._1_0)
+        _ = MIDIEventListAdd(&list, MemoryLayout<MIDIEventList>.size, packet, 0, 1, &w)
+        let network = MIDINetworkSession.default().destinationEndpoint()
+        if network != 0 { MIDISendEventList(outputPort, network, &list) }
+        if virtualSource != 0 { MIDIReceivedEventList(virtualSource, &list) }
+        record("→ sent CC 69 = \(index) ch \(channel)", "Helix snapshot \(index + 1)")
+    }
+
     func startLearning(_ target: LearnTarget) {
         learnNotice = nil
         learning = (learning == target) ? nil : target   // tapping again cancels

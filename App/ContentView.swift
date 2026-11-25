@@ -11,6 +11,8 @@ struct ContentView: View {
     @EnvironmentObject var band: BandSync
     @EnvironmentObject var importer: AutoImporter
     @State private var showUpgradeQueue = false
+    @State private var helixSet: SetList?
+    @State private var helixDemo = ProcessInfo.processInfo.arguments.contains("-helixDesigner")   // testing
     @State private var buildingSetFromText = ProcessInfo.processInfo.arguments.contains("-setFromText")   // testing
     @AppStorage("activeSetID") private var activeSetRaw = ""     // "" = Library
     @State private var showSettings = ProcessInfo.processInfo.arguments.contains("-openSettings")   // testing
@@ -134,6 +136,7 @@ struct ContentView: View {
                             #if os(macOS)
                             Button("Sync to Playback…", systemImage: "arrow.triangle.2.circlepath") { playbackSyncSet = set }
                             #endif
+                            Button("Helix preset for this set…", systemImage: "guitars") { helixSet = set }
                             Button("Print set list…", systemImage: "printer") {
                                 ChartPDF.print(ChartPDF.file(for: rendered(set), name: set.name, setTitle: set.name),
                                                jobName: set.name)
@@ -194,6 +197,12 @@ struct ContentView: View {
                 #endif
         }
         .sheet(isPresented: $showUpgradeQueue) { UpgradeQueueView() }
+        .sheet(item: $helixSet) { set in
+            if #available(iOS 18, macOS 14, *) { HelixPresetView(setID: set.id) }
+        }
+        .sheet(isPresented: $helixDemo) {
+            if #available(iOS 18, macOS 14, *) { HelixPresetView(setID: library.setLists.first?.id) }
+        }
         .sheet(isPresented: $buildingSetFromText) {
             AISetBuilderView { id in activeSetRaw = id.uuidString }
         }
@@ -439,6 +448,7 @@ struct ContentView: View {
         leadSendSelection()
         guard let new, let set = activeSet,
               let i = set.items.firstIndex(where: { "item:" + $0.id.uuidString == new }) else { return }
+        if let snap = set.items[i].helixSnapshot { midi.sendHelixSnapshot(snap) }
         if !fromRemote { midi.announceSongPicked(position: i + 1) }
     }
 

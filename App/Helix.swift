@@ -130,12 +130,17 @@ struct HelixCatalog {
         return cat
     }
 
-    /// Helix Native's *.models files: a JSON array of {symbolicID, name, params: [{symbolicID, valueType, min, max, max_stereo?}]}.
+    /// Helix Native's *.models files: a JSON array of {symbolicID, name, params: [{symbolicID, valueType, min, max,
+    /// max_stereo?, default}], cablink/ircablink (amps), mono/stereo (effects)}. Gives every setting's real limits, and
+    /// lets StageCharts use models that none of the player's presets contain, built from Line 6's default settings.
     mutating func readDefinitions(_ files: [URL]) {
+        var defs: [String: (file: String, model: JSON)] = [:]
         for u in files {
             guard let d = try? Data(contentsOf: u), let list = try? JSONSerialization.jsonObject(with: d) as? [JSON] else { continue }
+            let file = u.deletingPathExtension().lastPathComponent
             for m in list {
                 guard let id = m["symbolicID"] as? String else { continue }
+                defs[id] = (file, m)
                 if let n = m["name"] as? String { names[id] = n }
                 var l: [String: Limit] = [:]
                 for p in m["params"] as? [JSON] ?? [] {
@@ -146,6 +151,52 @@ struct HelixCatalog {
                 if !l.isEmpty { limits[id] = l }
             }
         }
+        // Models the presets don't contain, from Line 6's defaults. Preamps (they need a separate cab block), cabs on
+        // their own, send/returns and I/O are left out.
+        let kinds: [String: Int] = ["amp": 3, "delay": 7, "reverb": 7, "distortion": 0, "compressor": 0, "modulation": 0,
+                                    "eq": 0, "filter": 0, "pitch-synth": 0, "gate": 0]
+        for (id, def) in defs where models[id] == nil && Self.usable(id) {
+            guard let type = kinds[def.file] else { continue }
+            var block = Self.defaults(def.model)
+            block["@model"] = id
+            block["@type"] = type
+            block["@enabled"] = true
+            block["@no_snapshot_bypass"] = false
+            block["@path"] = 0
+            block["@position"] = 0
+            var linked: [String: JSON] = [:]
+            if def.file == "amp" {
+                guard let cabID = def.model["ircablink"] as? String, let cab = defs[cabID] else { continue }
+                var c = Self.defaults(cab.model)
+                c["@model"] = cabID
+                c["@enabled"] = true
+                linked["cab0"] = c
+                block["@cab"] = "cab0"
+                block["@bypassvolume"] = block["@bypassvolume"] ?? 1.0
+                block["@stereo"] = nil
+            } else {
+                // Stereo-only models must be placed as stereo.
+                block["@stereo"] = (def.model["mono"] as? Bool) == false
+                if type == 7 { block["@trails"] = false }
+            }
+            models[id] = Model(id: id, type: type, example: block, linked: linked, ranges: [:])
+        }
+    }
+
+    /// A model definition's default settings, typed the way Helix writes them (on/off, whole number or decimal).
+    /// Includes "@bypassvolume" for amps; other "@" settings are set by the caller.
+    private static func defaults(_ model: JSON) -> JSON {
+        var out: JSON = [:]
+        for p in model["params"] as? [JSON] ?? [] {
+            // Stereo-only settings are kept too: Helix writes them in mono blocks as well.
+            guard let k = p["symbolicID"] as? String, let v = p["default"], k == "@bypassvolume" || !k.hasPrefix("@") else { continue }
+            switch p["valueType"] as? Int {
+            case 2: out[k] = (v as? Bool) ?? ((number(v) ?? 0) != 0)
+            case 0: out[k] = Int((number(v) ?? 0).rounded())
+            default: out[k] = number(v) ?? 0
+            }
+        }
+        return out
     }
 
     /// A Helix setlist (.hls): {"encoded_data": base64(zlib(JSON)), …} holding {"presets": […]}.

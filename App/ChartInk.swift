@@ -1,19 +1,16 @@
 import SwiftUI
 import PencilKit
 
-/// Pencil markings on a chart. Strokes are stored per section, relative to the section's lyric column
+/// Pencil markings on a chart. Each stroke is stored relative to the word (or line or heading) it was drawn on
 /// and in units of a 22-point chart, so they stay with their section when the key, text size, columns or
 /// device change.
 struct ChartInk: Codable, Equatable {
-    /// Section id → PKDrawing data.
+    /// Anchor (see InkAnchorsKey) → PKDrawing data. (Named "sections" because the first version anchored to sections.)
     var sections: [String: Data] = [:]
     var isEmpty: Bool { sections.isEmpty }
 
     static let referenceSize: CGFloat = 22
 
-    func drawing(section: Int) -> PKDrawing? {
-        sections[String(section)].flatMap { try? PKDrawing(data: $0) }
-    }
 }
 
 /// Where a set of markings belongs: the song everywhere, or one song in one set.
@@ -63,38 +60,102 @@ final class InkCache {
     var value: [InkLayer: ChartInk] = [:]
 }
 
+#if os(iOS)
+typealias PlatformColor = UIColor
+#else
+typealias PlatformColor = NSColor
+#endif
+
+// MARK: - Anchors
+
+/// Where each heading, line and word is on the chart: "3" (section's lyric column), "3.h" (heading),
+/// "3.5" (line 5) and "3.5.2" (word 2 of line 5). Markings are stored relative to one of these.
+struct InkAnchorsKey: PreferenceKey {
+    static var defaultValue: [String: Anchor<CGRect>] = [:]
+    static func reduce(value: inout [String: Anchor<CGRect>], nextValue: () -> [String: Anchor<CGRect>]) {
+        value.merge(nextValue()) { a, _ in a }
+    }
+}
+
+extension View {
+    func inkAnchor(_ key: String?) -> some View {
+        anchorPreference(key: InkAnchorsKey.self, value: .bounds) { a in key.map { [$0: a] } ?? [:] }
+    }
+}
+
+/// Latest anchor frames, read when starting to draw and when saving (not observed).
+final class InkFrames {
+    var value: [String: CGRect] = [:]
+}
+
 // MARK: - Placing strokes
 
 enum InkGeometry {
     /// Chart points per stored unit.
     static func scale(_ size: CGFloat) -> CGFloat { size / ChartInk.referenceSize }
 
-    /// Stored section drawing → chart coordinates (anchor = the section's lyric column top-left).
+    /// Stored drawing → chart coordinates (relative to its anchor's top-left).
     static func place(_ d: PKDrawing, at anchor: CGPoint, size: CGFloat) -> PKDrawing {
         let k = scale(size)
         return d.transformed(using: CGAffineTransform(scaleX: k, y: k).concatenating(.init(translationX: anchor.x, y: anchor.y)))
     }
 
-    /// Splits a drawing in chart coordinates into sections: each stroke goes with the section it's on
-    /// (or the nearest one), stored relative to that section's anchor.
-    static func split(_ drawing: PKDrawing, frames: [Int: CGRect], anchors: [Int: CGPoint], size: CGFloat) -> ChartInk {
-        guard !frames.isEmpty else { return ChartInk() }
-        var bySection: [Int: [PKStroke]] = [:]
+    /// Splits a drawing in chart coordinates by anchor: each stroke goes with the word (or line or heading)
+    /// it's on or nearest to, stored relative to that word's top-left, so it moves with the word when lines re-wrap.
+    static func split(_ drawing: PKDrawing, frames: [String: CGRect], size: CGFloat) -> ChartInk {
+        let specific = frames.filter { $0.key.contains(".") }
+        let candidates = specific.isEmpty ? frames : specific
+        guard !candidates.isEmpty else { return ChartInk() }
+        var byAnchor: [String: [PKStroke]] = [:]
         for stroke in drawing.strokes {
             let c = CGPoint(x: stroke.renderBounds.midX, y: stroke.renderBounds.midY)
-            let id = frames.min { distance(c, $0.value) < distance(c, $1.value) }!.key
-            bySection[id, default: []].append(stroke)
+            let containing = candidates.filter { $0.value.contains(c) }
+            let key = containing.isEmpty
+                ? candidates.min { distance(c, $0.value) < distance(c, $1.value) }!.key
+                : containing.min { area($0.value) < area($1.value) }!.key
+            byAnchor[key, default: []].append(stroke)
         }
         let k = scale(size)
         var ink = ChartInk()
-        for (id, strokes) in bySection {
-            let a = anchors[id] ?? frames[id]!.origin
+        for (key, strokes) in byAnchor {
+            let a = frames[key]!.origin
             let back = CGAffineTransform(translationX: -a.x, y: -a.y).concatenating(.init(scaleX: 1 / k, y: 1 / k))
-            ink.sections[String(id)] = PKDrawing(strokes: strokes).transformed(using: back).dataRepresentation()
+            ink.sections[key] = PKDrawing(strokes: strokes).transformed(using: back).dataRepresentation()
         }
         return ink
     }
 
+    #if DEBUG
+    /// Test strokes: underline words 2–5 of the first line of section 1, circle word 1 of section 2's first line.
+    static func demo(frames: [String: CGRect]) -> PKDrawing {
+        func stroke(_ pts: [CGPoint], _ color: PlatformColor) -> PKStroke {
+            let p = pts.enumerated().map { i, pt in
+                PKStrokePoint(location: pt, timeOffset: Double(i) * 0.01, size: CGSize(width: 4, height: 4),
+                              opacity: 1, force: 1, azimuth: 0, altitude: .pi / 2)
+            }
+            return PKStroke(ink: PKInk(.pen, color: color), path: PKStrokePath(controlPoints: p, creationDate: Date()))
+        }
+        var strokes: [PKStroke] = []
+        for w in 2...5 {
+            if let f = frames["1.0.\(w)"] {
+                strokes.append(stroke([CGPoint(x: f.minX, y: f.maxY + 2), CGPoint(x: f.maxX, y: f.maxY + 2)], .systemRed))
+            }
+        }
+        if let f = frames["2.0.1"] {
+            let c = CGPoint(x: f.midX, y: f.midY)
+            let rx: CGFloat = f.width / 2 + 8, ry: CGFloat = f.height / 2 + 6
+            var pts: [CGPoint] = []
+            for i in 0...40 {
+                let t = CGFloat(i) / 40 * 2 * .pi
+                pts.append(CGPoint(x: c.x + rx * cos(t), y: c.y + ry * sin(t)))
+            }
+            strokes.append(stroke(pts, .systemBlue))
+        }
+        return PKDrawing(strokes: strokes)
+    }
+    #endif
+
+    private static func area(_ r: CGRect) -> CGFloat { r.width * r.height }
     private static func distance(_ p: CGPoint, _ r: CGRect) -> CGFloat {
         let dx = max(r.minX - p.x, 0, p.x - r.maxX), dy = max(r.minY - p.y, 0, p.y - r.maxY)
         return dx * dx + dy * dy
@@ -103,30 +164,49 @@ enum InkGeometry {
 
 // MARK: - Showing markings
 
-/// A section's markings drawn on top of it (not interactive). Strokes may reach outside the section.
-struct InkOverlay: View {
-    let drawings: [PKDrawing]      // stored units, relative to the anchor
+/// All markings on the chart, each drawn at its anchor's current place.
+struct InkLayerView: View {
+    let ink: [String: [PKDrawing]]
+    let frames: [String: CGRect]
     let size: CGFloat
     let dark: Bool
-    var anchorX: CGFloat = 0
-    @Environment(\.displayScale) private var displayScale
-    @State private var rendered: (image: Image, rect: CGRect)?
-
-    private var key: String {
-        drawings.map { "\($0.strokes.count):\($0.bounds):\($0.dataRepresentation().hashValue)" }.joined(separator: ",") + "|\(size)|\(dark)|\(displayScale)"
-    }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             Color.clear
-            if let r = rendered {
-                r.image.resizable()
-                    .frame(width: r.rect.width, height: r.rect.height)
-                    .offset(x: anchorX + r.rect.minX, y: r.rect.minY)
+            ForEach(ink.keys.sorted(), id: \.self) { key in
+                if let f = frames[key] {
+                    InkStrokes(drawings: ink[key]!, size: size, dark: dark).offset(x: f.minX, y: f.minY)
+                }
             }
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+}
+
+/// One anchor's strokes as an image (re-rendered only when the strokes, size or colours change).
+private struct InkStrokes: View {
+    let drawings: [PKDrawing]      // stored units, relative to the anchor
+    let size: CGFloat
+    let dark: Bool
+    @Environment(\.displayScale) private var displayScale
+    @State private var rendered: (image: Image, rect: CGRect)?
+
+    private var key: String {
+        drawings.map { "\($0.strokes.count):\($0.bounds):\($0.dataRepresentation().hashValue)" }.joined(separator: ",")
+            + "|\(size)|\(dark)|\(displayScale)"
+    }
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            if let r = rendered {
+                r.image.resizable()
+                    .frame(width: r.rect.width, height: r.rect.height)
+                    .offset(x: r.rect.minX, y: r.rect.minY)
+            }
+        }
+        .frame(width: 0, height: 0, alignment: .topLeading)
         .task(id: key) { rendered = render() }
     }
 

@@ -31,8 +31,8 @@ struct SongView: View {
     @State private var inkSeed = PKDrawing()
     @State private var inkSeedID = UUID()
     @State private var inkHand = false
-    @State private var sectionFrames: [Int: CGRect] = [:]
-    @State private var sectionAnchors: [Int: CGPoint] = [:]
+    /// Where each word/line/heading is on the chart right now (filled in while drawing the chart).
+    @State private var inkFrames = InkFrames()
     /// From a set: mark this set's copy only, or the song everywhere.
     @AppStorage("inkSetOnly") private var inkSetOnly = false
 
@@ -188,6 +188,13 @@ struct SongView: View {
                 .padding(.bottom, size * 1.2)
                 .padding(.top, (chromeHidden ? size * 0.4 : size * 1.2) + max(0, geo.safeAreaInsets.top - metrics.insetTop))
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .overlayPreferenceValue(InkAnchorsKey.self) { anchors in
+                    GeometryReader { proxy in
+                        let frames = anchors.mapValues { proxy[$0] }
+                        let _ = inkFrames.value = frames
+                        InkLayerView(ink: visibleInk, frames: frames, size: size, dark: style == .stage)
+                    }
+                }
                 #if os(iOS)
                 .overlay {
                     if marking {
@@ -196,8 +203,14 @@ struct SongView: View {
                     }
                 }
                 #endif
-                .coordinateSpace(name: "chartContent")
             }
+            #if os(iOS)
+            // The chart re-wrapped (rotation, text size, columns, key): put the strokes being edited back on their words.
+            .onChange(of: "\(Int(geo.size.width))|\(size)|\(columnCount)|\(semitones - capo)") {
+                guard marking else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { if marking { startMarking() } }
+            }
+            #endif
             .background(style.background)
             #if os(iOS)
             .ignoresSafeArea(.container, edges: .top)        // the top bar overlays the chart instead of pushing it
@@ -235,6 +248,7 @@ struct SongView: View {
             guard ProcessInfo.processInfo.arguments.contains("-markUp") else { return }
             try? await Task.sleep(nanoseconds: 800_000_000)
             startMarking()
+            if ProcessInfo.processInfo.arguments.contains("-demoInk") { saveInk(InkGeometry.demo(frames: inkFrames.value)); stopMarking() }
         }
         #endif
         .sheet(isPresented: $editingInfo) {
@@ -271,13 +285,8 @@ struct SongView: View {
                             notes: settings.notes.filter { $0.section == section.id },
                             onAddNote: { editingNote = EditingNote(note: SongNote(section: section.id, text: ""), isNew: true) },
                             onEditNote: { editingNote = EditingNote(note: $0, isNew: false) },
-                            ink: inkDrawings(section: section.id))
+                            inkAnchors: true)
                     .id(section.id)
-                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("chartContent")) } action: { r in
-                        sectionFrames[section.id] = r
-                        let x = section.label == nil ? 0 : (indent ?? size * 2.4)
-                        sectionAnchors[section.id] = CGPoint(x: r.minX + x, y: r.minY)
-                    }
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -346,9 +355,16 @@ struct SongView: View {
     /// The layer being drawn on.
     private var editLayer: InkLayer { (inkSetOnly ? itemID : nil).map { .setItem($0) } ?? .song(file.id) }
 
-    private func inkDrawings(section: Int) -> [PKDrawing] {
+    /// Markings to show (not the layer being edited, which is in the canvas): anchor → drawings.
+    private var visibleInk: [String: [PKDrawing]] {
         _ = library.inkRevision
-        return inkLayers.filter { !(marking && $0 == editLayer) }.compactMap { library.ink($0).drawing(section: section) }
+        var out: [String: [PKDrawing]] = [:]
+        for layer in inkLayers where !(marking && layer == editLayer) {
+            for (key, data) in library.ink(layer).sections {
+                if let d = try? PKDrawing(data: data) { out[key, default: []].append(d) }
+            }
+        }
+        return out
     }
 
     private var fingerDraws: Bool {
@@ -363,8 +379,8 @@ struct SongView: View {
         let ink = library.ink(editLayer)
         var d = PKDrawing()
         for (key, data) in ink.sections {
-            guard let id = Int(key), let a = sectionAnchors[id], let part = try? PKDrawing(data: data) else { continue }
-            d.append(InkGeometry.place(part, at: a, size: size))
+            guard let f = inkFrames.value[key], let part = try? PKDrawing(data: data) else { continue }
+            d.append(InkGeometry.place(part, at: f.origin, size: size))
         }
         inkSeed = d
         inkSeedID = UUID()
@@ -375,7 +391,7 @@ struct SongView: View {
     private func stopMarking() { marking = false }
 
     private func saveInk(_ d: PKDrawing) {
-        library.setInk(InkGeometry.split(d, frames: sectionFrames, anchors: sectionAnchors, size: size), for: editLayer)
+        library.setInk(InkGeometry.split(d, frames: inkFrames.value, size: size), for: editLayer)
     }
 
     #if os(iOS)
@@ -636,23 +652,18 @@ struct SectionView: View {
     var notes: [SongNote] = []
     var onAddNote: (() -> Void)? = nil
     var onEditNote: ((SongNote) -> Void)? = nil
-    var ink: [PKDrawing] = []
+    /// Report where headings, lines and words are, so Pencil markings can stick to them.
+    var inkAnchors = false
+
+    private func anchor(_ suffix: String) -> String? { inkAnchors ? "\(section.id)" + suffix : nil }
 
     var body: some View {
-        content.overlay(alignment: .topLeading) {
-            if !ink.isEmpty {
-                InkOverlay(drawings: ink, size: size, dark: style == .stage,
-                           anchorX: section.label == nil ? 0 : (indent ?? size * 2.4))
-            }
-        }
-    }
-
-    private var content: some View {
         VStack(alignment: .leading, spacing: size * 0.25) {
             if let label = section.label {
                 Text(label.uppercased())
                     .font(ChartFonts.heading(size * 1.1))
                     .foregroundStyle(style.text)
+                    .inkAnchor(anchor(".h"))
                     .padding(.bottom, size * 0.3)
                     .contextMenu {
                         if let onAddNote { Button("Add sticky note", systemImage: "note.text.badge.plus", action: onAddNote) }
@@ -664,7 +675,7 @@ struct SectionView: View {
                     .padding(.bottom, size * 0.3)
             }
             VStack(alignment: .leading, spacing: size * 0.25) {
-                ForEach(Array(section.lines.enumerated()), id: \.offset) { _, line in
+                ForEach(Array(section.lines.enumerated()), id: \.offset) { i, line in
                     switch line {
                     case .lyrics(let segs) where Self.isBarLine(segs):
                         // "| [Eb] . . [Gm] | [Fsus] |" → one inline row
@@ -672,18 +683,28 @@ struct SectionView: View {
                             acc + (s.chord.map { ChordLabel.text($0 + " ", size: size, color: style.chord) } ?? Text(""))
                                 + Text(s.lyric).font(ChartFonts.lyric(size)).foregroundColor(style.text)
                         }
+                        .inkAnchor(anchor(".\(i)"))
                     case .lyrics(let segs):
-                        ChordLyricLine(segments: segs, size: size, style: style)
+                        ChordLyricLine(segments: segs, size: size, style: style, inkAnchor: anchor(".\(i)"))
                     case .comment(let c):
                         Text(c).italic().font(ChartFonts.lyric(size * 0.85)).foregroundStyle(style.secondary)
+                            .inkAnchor(anchor(".\(i)"))
                     case .label(let l):
                         Text(l.uppercased()).font(ChartFonts.heading(size)).foregroundStyle(style.text)
+                            .inkAnchor(anchor(".\(i)"))
                     case .blank:
                         Spacer().frame(height: size * 0.4)
                     }
                 }
             }
             .padding(.leading, section.label == nil ? 0 : (indent ?? size * 2.4))   // lyrics indented under the heading
+        }
+        // Whole-section anchor at the lyric column (markings saved before words were anchors).
+        .background(alignment: .topLeading) {
+            if inkAnchors {
+                Color.clear.frame(width: 1, height: 1).inkAnchor(anchor(""))
+                    .padding(.leading, section.label == nil ? 0 : (indent ?? size * 2.4))
+            }
         }
     }
 
@@ -701,6 +722,8 @@ struct ChordLyricLine: View {
     let segments: [Segment]
     let size: CGFloat
     let style: ChartStyle
+    /// "section.line": each word reports its place as "section.line.word" for Pencil markings.
+    var inkAnchor: String? = nil
 
     private struct Chunk: Hashable { let chord: String?; let text: String }
 
@@ -729,7 +752,9 @@ struct ChordLyricLine: View {
         let chunks = self.chunks
         if #available(iOS 16, macOS 13, *) {
             FlowLayout(lineSpacing: size * 0.2) {
-                ForEach(Array(chunks.enumerated()), id: \.offset) { _, chunk in chunkView(chunk) }
+                ForEach(Array(chunks.enumerated()), id: \.offset) { i, chunk in
+                    chunkView(chunk).inkAnchor(inkAnchor.map { "\($0).\(i)" })
+                }
             }
         } else {
             LegacyFlow(count: chunks.count, lineSpacing: size * 0.2) { chunkView(chunks[$0]) }

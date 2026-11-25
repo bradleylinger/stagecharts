@@ -1,5 +1,6 @@
 import SwiftUI
 import ChordProKit
+import PencilKit
 
 /// Full-screen chord chart with live key changes, section navigation, and 1- or 2-column layout.
 @available(iOS 18, macOS 15, *)
@@ -25,6 +26,15 @@ struct SongView: View {
     @State private var showAIConvert = false
     @State private var showTransition = false     // iOS: tap the chart to hide / show the top bar
     @State private var editingInfo = false
+    // Pencil markings
+    @State private var marking = false
+    @State private var inkSeed = PKDrawing()
+    @State private var inkSeedID = UUID()
+    @State private var inkHand = false
+    @State private var sectionFrames: [Int: CGRect] = [:]
+    @State private var sectionAnchors: [Int: CGPoint] = [:]
+    /// From a set: mark this set's copy only, or the song everywhere.
+    @AppStorage("inkSetOnly") private var inkSetOnly = false
 
     struct EditingNote: Identifiable {
         let id = UUID()
@@ -178,12 +188,22 @@ struct SongView: View {
                 .padding(.bottom, size * 1.2)
                 .padding(.top, (chromeHidden ? size * 0.4 : size * 1.2) + max(0, geo.safeAreaInsets.top - metrics.insetTop))
                 .frame(maxWidth: .infinity, alignment: .leading)
+                #if os(iOS)
+                .overlay {
+                    if marking {
+                        InkCanvas(seed: inkSeed, seedID: inkSeedID, dark: style == .stage, fingerDraws: fingerDraws,
+                                  handMode: inkHand) { saveInk($0) }
+                    }
+                }
+                #endif
+                .coordinateSpace(name: "chartContent")
             }
             .background(style.background)
             #if os(iOS)
             .ignoresSafeArea(.container, edges: .top)        // the top bar overlays the chart instead of pushing it
             .contentShape(Rectangle())
-            .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { chromeHidden.toggle() } }
+            .onTapGesture { if !marking { withAnimation(.easeInOut(duration: 0.2)) { chromeHidden.toggle() } } }
+            .scrollDisabled(marking && fingerDraws && !inkHand)
             #endif
             .scrollPosition($position)
             .onScrollGeometryChange(for: ScrollMetrics.self) { g in
@@ -197,14 +217,26 @@ struct SongView: View {
         }
         .background(style.background.ignoresSafeArea())
         .offset(x: swipeOffset)
-        .simultaneousGesture(songSwipe)
+        .simultaneousGesture(songSwipe, including: marking ? .none : .all)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if let next = nextUp {
+            if let next = nextUp, !marking {
                 NextUpBar(position: next.position, total: next.total, next: next.song, size: size, style: style,
                           onTap: { midi.sendLocal(.nextSong) },
                           onTransition: transitionPair == nil ? nil : { showTransition = true })
             }
         }
+        #if os(iOS)
+        .overlay(alignment: .top) { if marking { markupBar } }
+        .onChange(of: file.id) { if marking { stopMarking() } }
+        .onChange(of: inkSetOnly) { if marking { startMarking() } }
+        #endif
+        #if DEBUG && os(iOS)
+        .task {   // -markUp: open in mark-up mode (screenshots)
+            guard ProcessInfo.processInfo.arguments.contains("-markUp") else { return }
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            startMarking()
+        }
+        #endif
         .sheet(isPresented: $editingInfo) {
             TempoEditor(tempo: library.tempo(for: file) ?? 0,
                         chartTempo: file.song.tempo.flatMap { Int($0) },
@@ -234,11 +266,18 @@ struct SongView: View {
     private func column(_ sections: [SongSection]) -> some View {
         VStack(alignment: .leading, spacing: size * 1.4) {
             ForEach(sections) { section in
-                SectionView(section: section, size: size, style: style, indent: isPhone ? size * 0.8 : nil,
+                let indent: CGFloat? = isPhone ? size * 0.8 : nil
+                SectionView(section: section, size: size, style: style, indent: indent,
                             notes: settings.notes.filter { $0.section == section.id },
                             onAddNote: { editingNote = EditingNote(note: SongNote(section: section.id, text: ""), isNew: true) },
-                            onEditNote: { editingNote = EditingNote(note: $0, isNew: false) })
+                            onEditNote: { editingNote = EditingNote(note: $0, isNew: false) },
+                            ink: inkDrawings(section: section.id))
                     .id(section.id)
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("chartContent")) } action: { r in
+                        sectionFrames[section.id] = r
+                        let x = section.label == nil ? 0 : (indent ?? size * 2.4)
+                        sectionAnchors[section.id] = CGPoint(x: r.minX + x, y: r.minY)
+                    }
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -299,6 +338,80 @@ struct SongView: View {
     private func deleteNote(_ note: SongNote) {
         library.update(file.id) { $0.notes.removeAll { $0.id == note.id } }
     }
+
+    // MARK: Pencil markings
+
+    /// Markings shown everywhere for this song, then this set's own.
+    private var inkLayers: [InkLayer] { [.song(file.id)] + (itemID.map { [.setItem($0)] } ?? []) }
+    /// The layer being drawn on.
+    private var editLayer: InkLayer { (inkSetOnly ? itemID : nil).map { .setItem($0) } ?? .song(file.id) }
+
+    private func inkDrawings(section: Int) -> [PKDrawing] {
+        _ = library.inkRevision
+        return inkLayers.filter { !(marking && $0 == editLayer) }.compactMap { library.ink($0).drawing(section: section) }
+    }
+
+    private var fingerDraws: Bool {
+        #if os(iOS)
+        !UIPencilInteraction.prefersPencilOnlyDrawing
+        #else
+        false
+        #endif
+    }
+
+    private func startMarking() {
+        let ink = library.ink(editLayer)
+        var d = PKDrawing()
+        for (key, data) in ink.sections {
+            guard let id = Int(key), let a = sectionAnchors[id], let part = try? PKDrawing(data: data) else { continue }
+            d.append(InkGeometry.place(part, at: a, size: size))
+        }
+        inkSeed = d
+        inkSeedID = UUID()
+        inkHand = false
+        marking = true
+    }
+
+    private func stopMarking() { marking = false }
+
+    private func saveInk(_ d: PKDrawing) {
+        library.setInk(InkGeometry.split(d, frames: sectionFrames, anchors: sectionAnchors, size: size), for: editLayer)
+    }
+
+    #if os(iOS)
+    private var markupBar: some View {
+        HStack(spacing: 12) {
+            if itemID != nil {
+                Picker("Markings for", selection: $inkSetOnly) {
+                    Text("This song").tag(false)
+                    Text("This set only").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .fixedSize()
+            }
+            if fingerDraws {
+                Toggle(isOn: $inkHand) { Label("Scroll", systemImage: "hand.draw") }
+                    .toggleStyle(.button)
+                    .help("Use your finger to scroll instead of draw")
+            }
+            Menu {
+                Button("Clear markings", systemImage: "trash", role: .destructive) {
+                    library.setInk(ChartInk(), for: editLayer)
+                    inkSeed = PKDrawing(); inkSeedID = UUID()
+                }
+            } label: {
+                Label("Clear", systemImage: "trash")
+            }
+            Button("Done") { stopMarking() }
+                .buttonStyle(.borderedProminent)
+        }
+        .labelStyle(.iconOnly)
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .background(.regularMaterial, in: Capsule())
+        .shadow(radius: 4)
+        .padding(.top, 8)
+    }
+    #endif
 
     // MARK: Next up (set lists only)
 
@@ -437,6 +550,15 @@ struct SongView: View {
             }
             .help("Tempo (BPM) and time signature")
 
+            #if os(iOS)
+            if file.pdfURL == nil {
+                Button { marking ? stopMarking() : startMarking() } label: {
+                    Label("Mark up", systemImage: marking ? "pencil.tip.crop.circle.fill" : "pencil.tip.crop.circle")
+                }
+                .help("Draw on the chart with Apple Pencil")
+            }
+            #endif
+
             Button { editingNote = EditingNote(note: SongNote(section: nil, text: ""), isNew: true) } label: {
                 Label("Add sticky note", systemImage: "note.text.badge.plus")
             }
@@ -514,8 +636,18 @@ struct SectionView: View {
     var notes: [SongNote] = []
     var onAddNote: (() -> Void)? = nil
     var onEditNote: ((SongNote) -> Void)? = nil
+    var ink: [PKDrawing] = []
 
     var body: some View {
+        content.overlay(alignment: .topLeading) {
+            if !ink.isEmpty {
+                InkOverlay(drawings: ink, size: size, dark: style == .stage,
+                           anchorX: section.label == nil ? 0 : (indent ?? size * 2.4))
+            }
+        }
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: size * 0.25) {
             if let label = section.label {
                 Text(label.uppercased())

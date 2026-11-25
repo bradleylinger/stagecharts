@@ -306,7 +306,7 @@ final class GoogleDriveSync: ObservableObject {
     }
 
     private struct State: Codable {
-        var root: String?, songs: String?, pdf: String?
+        var root: String?, songs: String?, pdf: String?, ink: String?
         var base: [String: String] = [:]     // path → MD5 when last in sync
         var ids: [String: String] = [:]      // path → Drive file id
     }
@@ -324,13 +324,15 @@ final class GoogleDriveSync: ObservableObject {
             let root = try await api.folder(named: "StageCharts Library", in: "root")
             let songsDir = try await api.folder(named: "Songs", in: root)
             let pdfDir = try await api.folder(named: "PDF", in: songsDir)
-            state.root = root; state.songs = songsDir; state.pdf = pdfDir
+            let inkDir = try await api.folder(named: "Ink", in: root)
+            state.root = root; state.songs = songsDir; state.pdf = pdfDir; state.ink = inkDir
 
             // Remote listing by relative path.
             var remote: [String: DriveFile] = [:]
             for f in try await api.list(in: root) where ["song-settings.json", "setlists.json"].contains(f.name) { remote[f.name] = f }
             for f in try await api.list(in: songsDir) where f.md5Checksum != nil { remote["Songs/" + f.name] = f }
             for f in try await api.list(in: pdfDir) where f.md5Checksum != nil { remote["Songs/PDF/" + f.name] = f }
+            for f in try await api.list(in: inkDir) where f.md5Checksum != nil { remote["Ink/" + f.name] = f }
 
             // Local listing by relative path.
             let fm = FileManager.default
@@ -339,7 +341,7 @@ final class GoogleDriveSync: ObservableObject {
                 let u = library.base.appendingPathComponent(name)
                 if fm.fileExists(atPath: u.path) { local[name] = u }
             }
-            for (dir, prefix) in [(library.folder, "Songs/"), (library.pdfFolder, "Songs/PDF/")] {
+            for (dir, prefix) in [(library.folder, "Songs/"), (library.pdfFolder, "Songs/PDF/"), (library.inkFolder, "Ink/")] {
                 for name in (try? fm.contentsOfDirectory(atPath: dir.path)) ?? [] where !name.hasPrefix(".") {
                     var isDir: ObjCBool = false
                     let u = dir.appendingPathComponent(name)
@@ -348,7 +350,7 @@ final class GoogleDriveSync: ObservableObject {
             }
 
             func parent(_ path: String) -> String {
-                path.hasPrefix("Songs/PDF/") ? pdfDir : (path.hasPrefix("Songs/") ? songsDir : root)
+                path.hasPrefix("Songs/PDF/") ? pdfDir : path.hasPrefix("Songs/") ? songsDir : path.hasPrefix("Ink/") ? inkDir : root
             }
             func localURL(_ path: String) -> URL { library.base.appendingPathComponent(path) }
 

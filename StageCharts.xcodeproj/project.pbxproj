@@ -12,6 +12,7 @@
 		0A3D9CEDF4DD95D29573EE5F /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = F841BDEAD333172A85B8241D /* Sparkle */; };
 		0BBD47A191D1F06ABFF2640D /* LinkKitResources.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 23840792A5816EF08D21098D /* LinkKitResources.bundle */; platformFilters = (ios, ); };
 		0EBC9EAE73520AEE80846B26 /* Holy Forever-chords-Bb.pdf in Resources */ = {isa = PBXBuildFile; fileRef = D2F173F76CF67C4D3EABEEB0 /* Holy Forever-chords-Bb.pdf */; };
+		0EBFFA3014D047715F62332E /* ChartInk.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2648D34FE305C6F093367C1B /* ChartInk.swift */; };
 		21E310C2C080D23C286791D1 /* PlaybackSyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64D26BC6C6E3018DC56ED470 /* PlaybackSyncEngine.swift */; };
 		2EF3C70C5C943BC762437527 /* GoogleDriveSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = F610E83180951504B6804CAF /* GoogleDriveSync.swift */; };
 		303A87FAB87E127745E61A8A /* Goodness Of God-chords-Ab.pdf in Resources */ = {isa = PBXBuildFile; fileRef = A6B63466886982F071B7BC91 /* Goodness Of God-chords-Ab.pdf */; };
@@ -67,6 +68,7 @@
 		1DB04444EAE1AF678B06E54D /* SongSelectImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SongSelectImport.swift; sourceTree = "<group>"; };
 		21A29976A890994F13ECF760 /* ChartStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartStyle.swift; sourceTree = "<group>"; };
 		23840792A5816EF08D21098D /* LinkKitResources.bundle */ = {isa = PBXFileReference; lastKnownFileType = wrapper.cfbundle; path = LinkKitResources.bundle; sourceTree = "<group>"; };
+		2648D34FE305C6F093367C1B /* ChartInk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartInk.swift; sourceTree = "<group>"; };
 		2810C66E88BA23020D1CB4A5 /* O Come O Come Emmanuel (Veni Emmanuel)-chords-Em.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "O Come O Come Emmanuel (Veni Emmanuel)-chords-Em.pdf"; sourceTree = "<group>"; };
 		361823FFCAF73327E5C09571 /* StageChartsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageChartsApp.swift; sourceTree = "<group>"; };
 		3955B0F5E1067CE8CCC3311C /* Cornerstone-chords-C.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "Cornerstone-chords-C.pdf"; sourceTree = "<group>"; };
@@ -188,6 +190,7 @@
 				DC4438900E261297DD1A442D /* BluetoothMIDI.swift */,
 				6FC899D2D34CC1FB2328FC83 /* CCLIReport.swift */,
 				9EB08FE317E2A659031F22C2 /* ChartCapture.swift */,
+				2648D34FE305C6F093367C1B /* ChartInk.swift */,
 				21A29976A890994F13ECF760 /* ChartStyle.swift */,
 				41BB546B7D9658C33A57F9DB /* ChordDiagram.swift */,
 				60880C5D22BD5AC229020529 /* ContentView.swift */,
@@ -346,6 +349,7 @@
 				F81089CCCBC3A6EF5B96D9D0 /* BluetoothMIDI.swift in Sources */,
 				AAC37DBF3FB2D844CC262D98 /* CCLIReport.swift in Sources */,
 				CD22E208E5EE5FB60DA6C967 /* ChartCapture.swift in Sources */,
+				0EBFFA3014D047715F62332E /* ChartInk.swift in Sources */,
 				463DDD461CC8CF7012C73666 /* ChartStyle.swift in Sources */,
 				61439E4ACA0CF81350248FF7 /* ChordDiagram.swift in Sources */,
 				70260258E1BF55CC5785D8B7 /* ContentView.swift in Sources */,

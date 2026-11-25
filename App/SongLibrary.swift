@@ -56,6 +56,9 @@ final class SongLibrary: ObservableObject {
     @Published private(set) var setLists: [SetList] = []
     /// Called after the library changes on this device (Google Drive sync listens).
     var onLocalChange: (() -> Void)?
+    /// Pencil markings (see ChartInk.swift); bumped when they change so charts redraw.
+    let inkCache = InkCache()
+    @Published var inkRevision = 0
 
     static let extensions: Set<String> = ["chordpro", "cho", "crd", "chopro", "pro", "txt"]
 
@@ -97,6 +100,8 @@ final class SongLibrary: ObservableObject {
 
     /// Re-reads songs, settings and set lists (e.g. after another device changed the shared folder).
     func reloadAll() {
+        inkCache.value = [:]
+        inkRevision += 1
         loadSettings()
         loadSetLists()
         reload()
@@ -129,6 +134,9 @@ final class SongLibrary: ObservableObject {
         }
         copyMissing(from: folder, to: target)
         copyMissing(from: pdfFolder, to: targetPDF)
+        let targetInk = url.appendingPathComponent("Ink", isDirectory: true)
+        try? fm.createDirectory(at: targetInk, withIntermediateDirectories: true)
+        copyMissing(from: inkFolder, to: targetInk)
 
         // Merge settings and set lists (shared folder wins on conflicts).
         let mySettings = settings, mySets = setLists
@@ -158,8 +166,10 @@ final class SongLibrary: ObservableObject {
         let fm = FileManager.default
         let dest = Self.deviceBase.appendingPathComponent("Songs", isDirectory: true)
         let destPDF = dest.appendingPathComponent("PDF", isDirectory: true)
+        let destInk = Self.deviceBase.appendingPathComponent("Ink", isDirectory: true)
         try? fm.createDirectory(at: destPDF, withIntermediateDirectories: true)
-        for (src, dst) in [(folder, dest), (pdfFolder, destPDF)] {
+        try? fm.createDirectory(at: destInk, withIntermediateDirectories: true)
+        for (src, dst) in [(folder, dest), (pdfFolder, destPDF), (inkFolder, destInk)] {
             for name in (try? fm.contentsOfDirectory(atPath: src.path)) ?? [] {
                 let s = src.appendingPathComponent(name), d = dst.appendingPathComponent(name)
                 var isDir: ObjCBool = false

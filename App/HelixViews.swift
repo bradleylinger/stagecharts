@@ -22,6 +22,7 @@ struct HelixSettingsSection: View {
                 if let c = catalog {
                     LabeledContent("Learned from", value: "\(c.presetCount) presets · \(c.models.count) models")
                     LabeledContent("Last read", value: c.scanned.formatted(date: .abbreviated, time: .shortened))
+                    LabeledContent("Setting limits", value: c.limits.isEmpty ? "Not found" : "From Helix Native (\(c.limits.count) models)")
                 } else {
                     Text("Not set up yet.").foregroundStyle(.secondary)
                 }
@@ -33,7 +34,7 @@ struct HelixSettingsSection: View {
             } header: {
                 Text("Your Helix presets")
             } footer: {
-                Text("StageCharts learns which amps and effects your Helix Native has, and every setting they take, from presets you've exported. In Helix Native select presets (or the whole factory setlist) and choose Export, into one folder; .hlx and .hls files both work. Include at least one preset saved by Helix Native.")
+                Text("StageCharts learns which amps and effects your Helix Native has, and every setting they take, from presets you've exported. In Helix Native select presets (or the whole factory setlist) and choose Export, into one folder; .hlx and .hls files both work. Include at least one preset saved by Helix Native. On a Mac with Helix Native installed, StageCharts also reads each setting's real limits from Helix Native itself.")
             }
 
             Section {

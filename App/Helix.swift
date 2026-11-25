@@ -40,7 +40,19 @@ struct HelixCatalog {
         var category: String { HelixCatalog.category(id, type: type) }
     }
 
+    /// A setting's real limits, from Helix Native's own model definitions (res/*.models).
+    struct Limit {
+        let lo: Double, hi: Double
+        /// Some settings have a smaller maximum when the block is stereo (e.g. Simple Delay Time 8 s mono, 4 s stereo).
+        let hiStereo: Double?
+        func clamp(_ x: Double, stereo: Bool) -> Double { min(max(x, lo), stereo ? (hiStereo ?? hi) : hi) }
+    }
+
     var models: [String: Model] = [:]
+    /// Model id → setting → limits. Empty when Helix Native's definitions weren't found.
+    var limits: [String: [String: Limit]] = [:]
+    /// Model id → Line 6's own name ("Bucket Brigade").
+    var names: [String: String] = [:]
     var skeleton: JSON = [:]
     var presetCount = 0
     var scanned = Date()
@@ -69,6 +81,7 @@ struct HelixCatalog {
 
     /// "HD2_AmpPlacaterDirty" → "Placater Dirty".
     static func displayName(_ id: String) -> String {
+        if let n = shared?.names[id] { return n }
         var n = id.replacingOccurrences(of: "HD2_", with: "").replacingOccurrences(of: "L6SPB_", with: "")
         for p in ["Amp", "Cab", "Dist", "Delay", "Reverb", "Compressor", "EQ", "Chorus", "Flanger", "Phaser", "Tremolo", "Pitch", "Filter", "Gate"]
             where n.hasPrefix(p) && n.count > p.count { n = String(n.dropFirst(p.count)); break }
@@ -80,11 +93,19 @@ struct HelixCatalog {
         return out.replacingOccurrences(of: "_", with: " ")
     }
 
+    /// The catalog last loaded or scanned (for display names).
+    nonisolated(unsafe) static var shared: HelixCatalog?
+
     // MARK: Scanning
 
-    /// Reads every .hlx / .hls under `folder`.
+    /// Where Helix Native keeps its model definitions on a Mac.
+    static let nativeResources = URL(fileURLWithPath: "/Library/Application Support/Line 6/Helix Native/res", isDirectory: true)
+
+    /// Reads every .hlx / .hls under `folder`, plus Helix Native's model definitions (*.models) — from the folder
+    /// if they were copied there, otherwise from Helix Native's own install on this Mac.
     static func scan(_ folder: URL) throws -> HelixCatalog {
         var presets: [JSON] = []
+        var definitions: [URL] = []
         let fm = FileManager.default
         let e = fm.enumerator(at: folder, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
         while let u = e?.nextObject() as? URL {
@@ -93,11 +114,38 @@ struct HelixCatalog {
                 if let d = try? Data(contentsOf: u), let j = try? JSONSerialization.jsonObject(with: d) as? JSON { presets.append(j) }
             case "hls":
                 if let d = try? Data(contentsOf: u) { presets += setlistPresets(d) }
+            case "models":
+                definitions.append(u)
             default: break
             }
         }
         guard !presets.isEmpty else { throw HelixError.noPresets }
-        return try build(from: presets)
+        var cat = try build(from: presets)
+        if definitions.isEmpty {
+            definitions = (try? fm.contentsOfDirectory(at: nativeResources, includingPropertiesForKeys: nil))?
+                .filter { $0.pathExtension == "models" } ?? []
+        }
+        cat.readDefinitions(definitions)
+        shared = cat
+        return cat
+    }
+
+    /// Helix Native's *.models files: a JSON array of {symbolicID, name, params: [{symbolicID, valueType, min, max, max_stereo?}]}.
+    mutating func readDefinitions(_ files: [URL]) {
+        for u in files {
+            guard let d = try? Data(contentsOf: u), let list = try? JSONSerialization.jsonObject(with: d) as? [JSON] else { continue }
+            for m in list {
+                guard let id = m["symbolicID"] as? String else { continue }
+                if let n = m["name"] as? String { names[id] = n }
+                var l: [String: Limit] = [:]
+                for p in m["params"] as? [JSON] ?? [] {
+                    guard let k = p["symbolicID"] as? String, !k.hasPrefix("@"), (p["valueType"] as? Int) != 2,
+                          let lo = p["min"].flatMap(Self.number), let hi = p["max"].flatMap(Self.number) else { continue }
+                    l[k] = Limit(lo: lo, hi: hi, hiStereo: p["max_stereo"].flatMap(Self.number))
+                }
+                if !l.isEmpty { limits[id] = l }
+            }
+        }
     }
 
     /// A Helix setlist (.hls): {"encoded_data": base64(zlib(JSON)), …} holding {"presets": […]}.
@@ -178,8 +226,9 @@ struct HelixCatalog {
             models[id] = ["type": m.type, "example": m.example, "linked": m.linked,
                           "ranges": m.ranges.mapValues { [$0.0, $0.1] }]
         }
+        let lim = limits.mapValues { $0.mapValues { l -> [Double] in [l.lo, l.hi] + (l.hiStereo.map { [$0] } ?? []) } }
         let j: JSON = ["models": models, "skeleton": skeleton, "presetCount": presetCount,
-                       "scanned": scanned.timeIntervalSince1970]
+                       "scanned": scanned.timeIntervalSince1970, "limits": lim, "names": names]
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try JSONSerialization.data(withJSONObject: j).write(to: Self.url(in: folder), options: .atomic)
     }
@@ -191,12 +240,19 @@ struct HelixCatalog {
         cat.skeleton = skeleton
         cat.presetCount = j["presetCount"] as? Int ?? 0
         cat.scanned = Date(timeIntervalSince1970: j["scanned"] as? Double ?? 0)
+        cat.names = j["names"] as? [String: String] ?? [:]
+        for (id, v) in j["limits"] as? [String: [String: [Double]]] ?? [:] {
+            cat.limits[id] = v.compactMapValues { a in
+                a.count >= 2 ? Limit(lo: a[0], hi: a[1], hiStereo: a.count > 2 ? a[2] : nil) : nil
+            }
+        }
         for (id, v) in models {
             guard let m = v as? JSON, let ex = m["example"] as? JSON else { continue }
             let r = (m["ranges"] as? [String: [Double]] ?? [:]).compactMapValues { $0.count == 2 ? ($0[0], $0[1]) : nil }
             cat.models[id] = Model(id: id, type: m["type"] as? Int ?? 0, example: ex,
                                    linked: m["linked"] as? [String: JSON] ?? [:], ranges: r)
         }
+        shared = cat
         return cat
     }
 
@@ -209,10 +265,16 @@ struct HelixCatalog {
                 let v = m.example[k]!
                 if Self.isBool(v) { return "\(k)=\((v as? Bool) == true ? 1 : 0) (on/off)" }
                 guard let x = Self.number(v) else { return "\(k)" }
-                let r = m.ranges[k].map { $0.0 == $0.1 ? "" : " [\(Self.short($0.0))…\(Self.short($0.1))]" } ?? ""
+                let r: String
+                if let l = limits[m.id]?[k] {          // Helix Native's real limits
+                    r = " [\(Self.short(l.lo))…\(Self.short(l.hi))\(l.hiStereo.map { ", stereo max \(Self.short($0))" } ?? "")]"
+                } else {
+                    r = m.ranges[k].map { $0.0 == $0.1 ? "" : " [seen \(Self.short($0.0))…\(Self.short($0.1))]" } ?? ""
+                }
                 return "\(k)=\(Self.short(x))\(r)\(Self.isInteger(v) ? " int" : "")"
             }
-            return "\(m.id) — \(m.category): " + params.joined(separator: ", ")
+            let name = names[m.id].map { " (\($0))" } ?? ""
+            return "\(m.id)\(name) — \(m.category): " + params.joined(separator: ", ")
         }.joined(separator: "\n")
     }
 
@@ -266,7 +328,10 @@ enum HelixDesigner {
     Rules:
     - Use only model ids from the catalog, and only setting names listed for that model. Values are in the \
     same units as the examples (most knobs are 0–1; levels in dB; delay Time in seconds; frequencies in Hz). \
-    On/off settings are 1 or 0. Settings marked int must be whole numbers.
+    On/off settings are 1 or 0. Settings marked int must be whole numbers. \
+    A range in [lo…hi] is the setting's allowed range: never go outside it ("seen" ranges are only what the player has used). \
+    Delay Time ranges differ a lot between models (some analog delays stop at 0.3 s): pick a delay whose Time range covers \
+    every song's delay time.
     - One signal chain of at most 8 blocks, in order (e.g. gate/comp → drives → amp → cab → modulation → delay → reverb). \
     An amp marked "needs a cab after it" must be followed by a cab block. Prefer an "amp with its own cab" when available.
     - Snapshots (1–8) switch blocks on/off and change settings between songs or parts. `enabled` has one entry per block. \
@@ -378,8 +443,9 @@ enum HelixBuilder {
             block["@path"] = 0
             block["@enabled"] = snaps[0].enabled.indices.contains(k.index) ? snaps[0].enabled[k.index] : true
             block["@no_snapshot_bypass"] = false
+            let stereo = block["@stereo"] as? Bool ?? false
             for s in k.block.settings {
-                guard let v = value(s.value, param: s.param, model: k.model) else {
+                guard let v = value(s.value, param: s.param, model: k.model, stereo: stereo, catalog: catalog, warnings: &warnings) else {
                     warnings.append("\(HelixCatalog.displayName(k.model.id)): ignored unknown setting \(s.param)."); continue
                 }
                 block[s.param] = v
@@ -393,7 +459,10 @@ enum HelixBuilder {
         }
         for (si, s) in snaps.enumerated() {
             for st in s.settings {
-                guard let bi = newIndex[st.block], let v = value(st.value, param: st.param, model: kept[bi].model) else { continue }
+                guard let bi = newIndex[st.block] else { continue }
+                let stereo = (dsp0["block\(bi)"] as? JSON)?["@stereo"] as? Bool ?? false
+                guard let v = value(st.value, param: st.param, model: kept[bi].model, stereo: stereo, catalog: catalog,
+                                    warnings: &warnings, snapshot: clean(s.name, max: 10)) else { continue }
                 perSnapshot[bi, default: [:]][st.param, default: [:]][si] = v
             }
         }
@@ -415,11 +484,17 @@ enum HelixBuilder {
                 if HelixCatalog.isBool(base) {
                     entry["@min"] = false; entry["@max"] = true
                 } else {
-                    let r = kept[bi].model.ranges[p] ?? (nums.min() ?? 0, nums.max() ?? 1)
-                    let lo = min(r.0, nums.min() ?? r.0), hi = max(r.1, nums.max() ?? r.1)
-                    let unit = lo >= 0 && hi <= 1          // most knobs are 0–1: give the snapshot the full range
-                    entry["@min"] = unit ? 0.0 : lo
-                    entry["@max"] = unit ? 1.0 : hi
+                    let stereo = (dsp0["block\(bi)"] as? JSON)?["@stereo"] as? Bool ?? false
+                    if let l = catalog.limits[kept[bi].model.id]?[p] {      // Helix Native's own range
+                        entry["@min"] = l.lo
+                        entry["@max"] = stereo ? (l.hiStereo ?? l.hi) : l.hi
+                    } else {
+                        let r = kept[bi].model.ranges[p] ?? (nums.min() ?? 0, nums.max() ?? 1)
+                        let lo = min(r.0, nums.min() ?? r.0), hi = max(r.1, nums.max() ?? r.1)
+                        let unit = lo >= 0 && hi <= 1          // most knobs are 0–1: give the snapshot the full range
+                        entry["@min"] = unit ? 0.0 : lo
+                        entry["@max"] = unit ? 1.0 : hi
+                    }
                 }
                 bc[p] = entry
             }
@@ -474,9 +549,21 @@ enum HelixBuilder {
     }
 
     /// Claude's number as the parameter's own type (on/off, whole number or decimal); nil for unknown settings.
-    private static func value(_ x: Double, param: String, model: HelixCatalog.Model) -> Any? {
+    /// Values outside Helix Native's limits are pulled inside them (Helix would clamp them anyway), with a warning.
+    private static func value(_ x: Double, param: String, model: HelixCatalog.Model, stereo: Bool, catalog: HelixCatalog,
+                              warnings: inout [String], snapshot: String? = nil) -> Any? {
         guard let example = model.example[param], !param.hasPrefix("@") else { return nil }
         if HelixCatalog.isBool(example) { return x >= 0.5 }
+        var x = x
+        if let l = catalog.limits[model.id]?[param] {
+            let c = l.clamp(x, stereo: stereo)
+            if abs(c - x) > 1e-9 {
+                let w = "\(HelixCatalog.displayName(model.id)) \(param)\(snapshot.map { " (\($0))" } ?? ""): "
+                    + "\(HelixCatalog.short(x)) is outside its range, so it's set to \(HelixCatalog.short(c))."
+                warnings.append(w)
+                x = c
+            }
+        }
         if HelixCatalog.isInteger(example) { return Int(x.rounded()) }
         return x
     }

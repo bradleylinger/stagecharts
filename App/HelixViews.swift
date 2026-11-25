@@ -104,7 +104,12 @@ struct HelixSettingsSection: View {
         scanning = true; error = nil
         let dest = library.helixFolder
         Task.detached {
-            let result = Result { try HelixCatalog.scan(url) }
+            let result = Result {
+                var c = try HelixCatalog.scan(url)
+                c.info = HelixCatalog.readInfo(in: dest)   // model descriptions live in the library's Helix folder
+                HelixCatalog.shared = c
+                return c
+            }
             if case .success(let c) = result { try? c.save(in: dest) }
             await MainActor.run {
                 switch result {

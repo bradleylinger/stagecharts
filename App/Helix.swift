@@ -57,8 +57,32 @@ struct HelixCatalog {
     var channels: [String: [Bool]] = [:]
     /// Model id → setting → expression pedal assignment from the player's presets (e.g. volume "Pedal" on EXP 2).
     var pedals: [String: [String: JSON]] = [:]
+    /// Model id → what it is: the gear Line 6 based it on and a short description. From "model-info.json" in the
+    /// Helix folder (kept in the player's library, not the app), read fresh with the catalog.
+    var info: [String: Info] = [:]
     var skeleton: JSON = [:]
     var presetCount = 0
+
+    struct Info {
+        let basedOn: String?
+        let about: String?
+    }
+
+    static func infoURL(in folder: URL) -> URL { folder.appendingPathComponent("model-info.json") }
+
+    /// {"HD2_DistTeemah": {"basedOn": "Paul Cochrane Timmy Overdrive", "about": "..."}, ...}
+    static func readInfo(in folder: URL) -> [String: Info] {
+        guard let d = try? Data(contentsOf: infoURL(in: folder)),
+              let j = try? JSONSerialization.jsonObject(with: d) as? [String: [String: String]] else { return [:] }
+        return j.mapValues { Info(basedOn: $0["basedOn"], about: $0["about"]) }
+    }
+
+    /// "Teemah! (based on Paul Cochrane Timmy Overdrive)" for showing a block to the player.
+    static func describe(_ id: String) -> String {
+        let name = displayName(id)
+        guard let b = shared?.info[id]?.basedOn, !b.localizedCaseInsensitiveContains("Line 6 original") else { return name }
+        return "\(name) (based on \(b))"
+    }
     var scanned = Date()
 
     static func url(in folder: URL) -> URL { folder.appendingPathComponent("catalog.json") }
@@ -332,6 +356,7 @@ struct HelixCatalog {
         cat.names = j["names"] as? [String: String] ?? [:]
         cat.pedals = j["pedals"] as? [String: [String: JSON]] ?? [:]
         cat.channels = j["channels"] as? [String: [Bool]] ?? [:]
+        cat.info = readInfo(in: folder)
         for (id, v) in j["limits"] as? [String: [String: [Double]]] ?? [:] {
             cat.limits[id] = v.compactMapValues { a in
                 a.count >= 2 ? Limit(lo: a[0], hi: a[1], hiStereo: a.count > 2 ? a[2] : nil) : nil
@@ -398,7 +423,12 @@ struct HelixCatalog {
                 default: kind += ", mono or stereo"
                 }
             }
-            return "\(m.id)\(name) — \(kind): " + params.joined(separator: ", ")
+            var what = ""
+            if let i = info[m.id] {
+                if let b = i.basedOn, !b.isEmpty { what += " Based on \(b)." }
+                if let a = i.about, !a.isEmpty { what += " \(a)" }
+            }
+            return "\(m.id)\(name) — \(kind).\(what) Settings: " + params.joined(separator: ", ")
         }.joined(separator: "\n")
     }
 
@@ -512,7 +542,9 @@ enum HelixDesigner {
     static let system = """
     You design guitar presets for Line 6 Helix Native for a worship guitarist. You get a description of the \
     tones wanted, optionally the songs in a set list (with key, BPM and notes), and a catalog of the models \
-    this player's Helix Native has, each with its settings, an example value and the range seen in their presets.
+    this player's Helix Native has, each with its settings, an example value and the range seen in their presets. \
+    Most models also say what real gear Line 6 based them on and describe the sound: choose models by that (e.g. a \
+    Klon-style drive, a Vox-style amp), and when the request names real gear, use the model based on it.
 
     Rules:
     - Use only model ids from the catalog, and only setting names listed for that model. Values are in the \
@@ -902,7 +934,7 @@ enum HelixBuilder {
             map[s.song] = min(max(0, s.snapshot), snaps.count - 1)
         }
         return Result(preset: preset, warnings: warnings, songSnapshots: map,
-                      blocks: kept.map { HelixCatalog.displayName($0.model.id) }, snapshotNames: names, controls: controlNames)
+                      blocks: kept.map { HelixCatalog.describe($0.model.id) }, snapshotNames: names, controls: controlNames)
     }
 
     /// Claude's number as the parameter's own type (on/off, whole number or decimal); nil for unknown settings.

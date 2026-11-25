@@ -53,6 +53,8 @@ struct HelixCatalog {
     var limits: [String: [String: Limit]] = [:]
     /// Model id → Line 6's own name ("Bucket Brigade").
     var names: [String: String] = [:]
+    /// Model id → [can run mono, can run stereo], from Helix Native's definitions.
+    var channels: [String: [Bool]] = [:]
     /// Model id → setting → expression pedal assignment from the player's presets (e.g. volume "Pedal" on EXP 2).
     var pedals: [String: [String: JSON]] = [:]
     var skeleton: JSON = [:]
@@ -144,6 +146,9 @@ struct HelixCatalog {
                 guard let id = m["symbolicID"] as? String else { continue }
                 defs[id] = (file, m)
                 if let n = m["name"] as? String { names[id] = n }
+                if m["mono"] != nil || m["stereo"] != nil {
+                    channels[id] = [(m["mono"] as? Bool) ?? true, (m["stereo"] as? Bool) ?? true]
+                }
                 var l: [String: Limit] = [:]
                 for p in m["params"] as? [JSON] ?? [] {
                     guard let k = p["symbolicID"] as? String, !k.hasPrefix("@"), (p["valueType"] as? Int) != 2,
@@ -310,7 +315,7 @@ struct HelixCatalog {
         }
         let lim = limits.mapValues { $0.mapValues { l -> [Double] in [l.lo, l.hi] + (l.hiStereo.map { [$0] } ?? []) } }
         let j: JSON = ["models": models, "skeleton": skeleton, "presetCount": presetCount,
-                       "scanned": scanned.timeIntervalSince1970, "limits": lim, "names": names, "pedals": pedals]
+                       "scanned": scanned.timeIntervalSince1970, "limits": lim, "names": names, "pedals": pedals, "channels": channels]
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try JSONSerialization.data(withJSONObject: j).write(to: Self.url(in: folder), options: .atomic)
     }
@@ -324,6 +329,7 @@ struct HelixCatalog {
         cat.scanned = Date(timeIntervalSince1970: j["scanned"] as? Double ?? 0)
         cat.names = j["names"] as? [String: String] ?? [:]
         cat.pedals = j["pedals"] as? [String: [String: JSON]] ?? [:]
+        cat.channels = j["channels"] as? [String: [Bool]] ?? [:]
         for (id, v) in j["limits"] as? [String: [String: [Double]]] ?? [:] {
             cat.limits[id] = v.compactMapValues { a in
                 a.count >= 2 ? Limit(lo: a[0], hi: a[1], hiStereo: a.count > 2 ? a[2] : nil) : nil
@@ -382,7 +388,15 @@ struct HelixCatalog {
                 return "\(k)=\(Self.short(x))\(r)\(Self.isInteger(v) ? " int" : "")"
             }
             let name = names[m.id].map { " (\($0))" } ?? ""
-            return "\(m.id)\(name) — \(m.category): " + params.joined(separator: ", ")
+            var kind = m.category
+            if m.example["@stereo"] != nil {
+                switch channels[m.id] {
+                case [true, false]?: kind += ", mono only"
+                case [false, true]?: kind += ", stereo only"
+                default: kind += ", mono or stereo"
+                }
+            }
+            return "\(m.id)\(name) — \(kind): " + params.joined(separator: ", ")
         }.joined(separator: "\n")
     }
 
@@ -407,7 +421,13 @@ struct HelixDesign: Codable {
         var why: String?
         /// For an amp with its own cab: a different cab model to use in place of its matching one.
         var cab: String? = nil
+        /// "series", or "A" / "B" for the two parallel paths between a split and its merge.
+        var lane: String? = nil
+        /// true = stereo, false = mono, nil = the model's usual.
+        var stereo: Bool? = nil
     }
+    /// How the two parallel paths are merged: levels in dB, pans 0 (left)…1 (right), B's polarity flipped.
+    struct Paths: Codable { var levelA: Double; var panA: Double; var levelB: Double; var panB: Double; var invertB: Bool }
     struct SnapshotSetting: Codable { var block: Int; var param: String; var value: Double }
     struct Snapshot: Codable {
         var name: String
@@ -422,6 +442,7 @@ struct HelixDesign: Codable {
     var snapshots: [Snapshot]
     var songs: [SongSnapshot]
     var summary: String
+    var paths: Paths? = nil
 }
 
 extension HelixDesign {
@@ -431,7 +452,7 @@ extension HelixDesign {
         let keep = blocks.indices.filter { blocks[$0].model != model }
         var newIndex: [Int: Int] = [:]
         for (n, old) in keep.enumerated() { newIndex[old] = n + 1 }
-        d.blocks = [Block(model: model, settings: [], why: "Your volume pedal")] + keep.map { blocks[$0] }
+        d.blocks = [Block(model: model, settings: [], why: "Your volume pedal", lane: "series")] + keep.map { blocks[$0] }
         d.snapshots = snapshots.map { s in
             var s = s
             s.enabled = [true] + keep.map { s.enabled.indices.contains($0) ? s.enabled[$0] : true }
@@ -467,14 +488,22 @@ enum HelixDesigner {
     A range in [lo…hi] is the setting's allowed range: never go outside it ("seen" ranges are only what the player has used). \
     Delay Time ranges differ a lot between models (some analog delays stop at 0.3 s): pick a delay whose Time range covers \
     every song's delay time.
-    - One signal chain of at most 8 blocks, in order (e.g. gate/comp → drives → amp → cab → modulation → delay → reverb). \
+    - Blocks are listed in signal order (e.g. gate/comp → drives → amp → cab → modulation → delay → reverb). Each block's \
+    `lane` is "series" for the main chain. For parallel sounds (two amps, a wet/dry rig, a pitch or reverb blended in \
+    beside the dry signal) give consecutive blocks lane "A" or "B": the signal splits before the first of them and \
+    merges after the last, and series blocks after them come after the merge. Use at most one split. Set `paths` \
+    (merge levels in dB, usually 0; pans 0 = left, 0.5 = centre, 1 = right; invertB false) when there is a "B" \
+    block, otherwise null. The chain has 8 positions: blocks before the split + the longer of A and B + blocks after \
+    the merge must be at most 8.
+    - `stereo`: for a model marked "mono or stereo", true or false to choose, null for its usual. Amps and cabs are \
+    mono. Stereo effects after the merge keep a panned A/B spread; a mono block there collapses it to the centre.
     An amp or preamp marked "needs a cab after it" must be followed by a cab block. An "amp with its own cab" comes with \
     its matching cab; to pair it with a different cab instead, set the block's `cab` to that cab's model id (a "cab" from \
     the catalog) — this uses no extra block. Otherwise `cab` is null. Mixing a preamp or amp with a cab it isn't \
     usually paired with is fine when it suits the tone.
     - Wahs and volume pedals are played with the player's expression pedal; their Pedal setting is only where it \
     starts. When the request says the player's volume pedal is added automatically, don't add a volume pedal, and \
-    use at most 7 blocks.
+    use at most 7 positions.
     - Snapshots (1–8) switch blocks on/off and change settings between songs or parts. `enabled` has one entry per block. \
     `settings` are only the values that differ from the block's own settings in that snapshot. Names at most 10 characters.
     - Delays: for timed delays set TempoSync1 (and TempoSync2 if present) to 0 and set Time (seconds) from the song's BPM: \
@@ -487,14 +516,20 @@ enum HelixDesigner {
 
     static let schema: [String: Any] = [
         "type": "object", "additionalProperties": false,
-        "required": ["name", "blocks", "snapshots", "songs", "summary"],
+        "required": ["name", "blocks", "snapshots", "songs", "summary", "paths"],
         "properties": [
             "name": ["type": "string"],
+            "paths": ["type": ["object", "null"], "additionalProperties": false,
+                      "required": ["levelA", "panA", "levelB", "panB", "invertB"],
+                      "properties": ["levelA": ["type": "number"], "panA": ["type": "number"], "levelB": ["type": "number"],
+                                     "panB": ["type": "number"], "invertB": ["type": "boolean"]]],
             "summary": ["type": "string"],
             "blocks": ["type": "array", "items": [
-                "type": "object", "additionalProperties": false, "required": ["model", "settings", "why", "cab"],
+                "type": "object", "additionalProperties": false, "required": ["model", "settings", "why", "cab", "lane", "stereo"],
                 "properties": [
                     "model": ["type": "string"],
+                    "lane": ["type": "string", "enum": ["series", "A", "B"]],
+                    "stereo": ["type": ["boolean", "null"]],
                     "why": ["type": "string"],
                     "cab": ["type": ["string", "null"]],
                     "settings": ["type": "array", "items": [
@@ -584,8 +619,36 @@ enum HelixBuilder {
             if let m = catalog.models[b.model] { kept.append((i, m, b)) }
             else { warnings.append("Left out \(b.model): it isn't in your Helix presets.") }
         }
-        kept = Array(kept.prefix(8))
         guard !kept.isEmpty else { throw HelixError.bad("Claude didn't pick any models from your Helix. Try again.") }
+
+        // Layout: series blocks before the split, paths A and B side by side, series blocks after the merge.
+        typealias Kept = (index: Int, model: HelixCatalog.Model, block: HelixDesign.Block)
+        let parallel = kept.contains { $0.block.lane == "B" }
+        let firstParallel = parallel ? kept.firstIndex { $0.block.lane == "A" || $0.block.lane == "B" } : nil
+        var pre: [Kept] = [], laneA: [Kept] = [], laneB: [Kept] = [], post: [Kept] = []
+        for (i, k) in kept.enumerated() {
+            switch (parallel ? k.block.lane : nil) {
+            case "A"?: laneA.append(k)
+            case "B"?: laneB.append(k)
+            default: if let f = firstParallel, i > f { post.append(k) } else { pre.append(k) }
+            }
+        }
+        while pre.count + max(laneA.count, laneB.count) + post.count > 8 {
+            let dropped: Kept
+            if !post.isEmpty { dropped = post.removeLast() }
+            else if laneA.count >= laneB.count, !laneA.isEmpty { dropped = laneA.removeLast() }
+            else if !laneB.isEmpty { dropped = laneB.removeLast() }
+            else { dropped = pre.removeLast() }
+            warnings.append("Left out \(HelixCatalog.displayName(dropped.model.id)): the chain only has 8 positions.")
+        }
+        if laneB.isEmpty { pre += laneA + post; laneA = []; post = [] }       // no path B: one straight chain
+        let width = max(laneA.count, laneB.count)
+        let splitAt = laneB.isEmpty ? 0 : pre.count
+        let joinAt = laneB.isEmpty ? 8 : pre.count + width
+        var place: [(path: Int, position: Int)] = pre.indices.map { (0, $0) }
+        place += laneA.indices.map { (0, pre.count + $0) } + laneB.indices.map { (1, pre.count + $0) }
+        place += post.indices.map { (0, joinAt + $0) }
+        kept = pre + laneA + laneB + post
         let newIndex = Dictionary(uniqueKeysWithValues: kept.enumerated().map { ($1.index, $0) })
 
         let snaps = Array(design.snapshots.prefix(8))
@@ -596,10 +659,15 @@ enum HelixBuilder {
         var cabCount = 0
         for (bi, k) in kept.enumerated() {
             var block = k.model.example
-            block["@position"] = bi
-            block["@path"] = 0
+            block["@position"] = place[bi].position
+            block["@path"] = place[bi].path
             block["@enabled"] = snaps[0].enabled.indices.contains(k.index) ? snaps[0].enabled[k.index] : true
             block["@no_snapshot_bypass"] = false
+            if let want = k.block.stereo, block["@stereo"] != nil {
+                let can = catalog.channels[k.model.id] ?? [true, true]
+                if can[want ? 1 : 0] { block["@stereo"] = want }
+                else { warnings.append("\(HelixCatalog.displayName(k.model.id)) only runs \(want ? "mono" : "stereo"), so it stays that way.") }
+            }
             let stereo = block["@stereo"] as? Bool ?? false
             for s in k.block.settings {
                 guard let v = value(s.value, param: s.param, model: k.model, stereo: stereo, catalog: catalog, warnings: &warnings) else {
@@ -677,6 +745,16 @@ enum HelixBuilder {
                 controller["block\(bi)"] = bc
             }
         }
+        // The split and merge (always present in Helix; at the ends of the chain when path B isn't used).
+        let pj = design.paths ?? .init(levelA: 0, panA: 0.5, levelB: 0, panB: 0.5, invertB: false)
+        func level(_ x: Double) -> Double { min(max(x, -60), 12) }
+        func pan(_ x: Double) -> Double { min(max(x, 0), 1) }
+        dsp0["split"] = ["@enabled": true, "@model": "HD2_AppDSPFlowSplitY", "@position": splitAt,
+                         "BalanceA": 0.5, "BalanceB": 0.5, "bypass": false]
+        dsp0["join"] = ["@enabled": true, "@model": "HD2_AppDSPFlowJoin", "@position": joinAt,
+                        "A Level": laneB.isEmpty ? 0.0 : level(pj.levelA), "A Pan": laneB.isEmpty ? 0.5 : pan(pj.panA),
+                        "B Level": laneB.isEmpty ? 0.0 : level(pj.levelB), "B Pan": laneB.isEmpty ? 0.5 : pan(pj.panB),
+                        "B Polarity": laneB.isEmpty ? false : pj.invertB, "Level": 0.0]
         tone["dsp0"] = dsp0
         if !controller.isEmpty { tone["controller"] = ["dsp0": controller] }
 
@@ -707,6 +785,7 @@ enum HelixBuilder {
             global["@cursor_dsp"] = 0
             global["@cursor_group"] = "block0"
             global["@tempo"] = snaps[0].tempo ?? 120.0
+            global["@topology0"] = laneB.isEmpty ? "A" : "SABJ"
             tone["global"] = global
         }
         data["tone"] = tone

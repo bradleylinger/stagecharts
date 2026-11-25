@@ -17,6 +17,8 @@ struct SetList: Codable, Identifiable, Hashable {
     var items: [SetItem]
     /// The Helix Native preset made for this set (file name in the library's Helix folder).
     var helixPreset: String? = nil
+    /// That preset's snapshot names (index = snapshot), shown beside each song.
+    var helixSnapshotNames: [String]? = nil
 }
 
 extension JSONEncoder {

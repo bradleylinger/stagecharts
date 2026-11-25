@@ -410,6 +410,23 @@ struct HelixCatalog {
 extension SongLibrary {
     /// Generated presets and the catalog: the library's "Helix" folder (synced with Google Drive).
     var helixFolder: URL { base.appendingPathComponent("Helix", isDirectory: true) }
+
+    /// Snapshot names of the set's preset: saved with the set, else read from the preset file
+    /// (sets saved before names were stored). Empty when the set has no preset.
+    func helixSnapshotNames(_ set: SetList) -> [String] {
+        if let names = set.helixSnapshotNames { return names }
+        guard let file = set.helixPreset,
+              let data = try? Data(contentsOf: helixFolder.appendingPathComponent(file)),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let tone = (root["data"] as? [String: Any])?["tone"] as? [String: Any] else { return [] }
+        var names: [String] = []
+        for i in 0..<8 {
+            guard let snap = tone["snapshot\(i)"] as? [String: Any], snap["@valid"] as? Bool == true,
+                  let name = snap["@name"] as? String else { break }
+            names.append(name)
+        }
+        return names
+    }
 }
 
 // MARK: - Claude's design

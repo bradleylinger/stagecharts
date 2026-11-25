@@ -320,6 +320,7 @@ struct HelixPresetView: View {
             if let set {
                 library.updateSet(set.id) { s in
                     s.helixPreset = url.lastPathComponent
+                    s.helixSnapshotNames = b.snapshotNames
                     for i in s.items.indices { s.items[i].helixSnapshot = b.songSnapshots[i] }
                 }
             } else {

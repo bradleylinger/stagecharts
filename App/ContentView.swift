@@ -292,7 +292,8 @@ struct ContentView: View {
     }
 
     private func setListView(_ set: SetList) -> some View {
-        List(selection: $selection) {
+        let snapshotNames = library.helixSnapshotNames(set)
+        return List(selection: $selection) {
             Section {
                 ForEach(Array(set.items.enumerated()), id: \.element.id) { index, item in
                     if let file = library.song(id: item.songID) {
@@ -300,6 +301,7 @@ struct ContentView: View {
                             Text("\(index + 1).").font(.headline.monospacedDigit()).foregroundStyle(.secondary)
                             songRow(title: file.song.title, key: keyText(file, item: item), subtitle: file.song.artists.first)
                             Spacer(minLength: 4)
+                            snapshotPicker(set, item, names: snapshotNames)
                             if let cc = midi.mapping.setSlotCC(forPosition: index + 1) {
                                 Text("CC \(cc)")
                                     .font(.caption2.monospacedDigit())
@@ -325,6 +327,39 @@ struct ContentView: View {
                 }
             }
         }
+    }
+
+    /// The Helix Native snapshot this song recalls in this set only (not stored with the song).
+    private func snapshotPicker(_ set: SetList, _ item: SetItem, names: [String]) -> some View {
+        let label: (Int) -> String = { i in
+            names.indices.contains(i) ? "\(i + 1) · \(names[i])" : "Snapshot \(i + 1)"
+        }
+        return Menu {
+            Picker("Helix snapshot", selection: Binding(
+                get: { item.helixSnapshot },
+                set: { new in
+                    library.updateItem(set: set.id, item: item.id) { $0.helixSnapshot = new }
+                    // Already open: recall it now, as opening the song would.
+                    if let new, selection == "item:" + item.id.uuidString { midi.sendHelixSnapshot(new) }
+                })) {
+                Text("None").tag(Int?.none)
+                ForEach(0..<8, id: \.self) { i in Text(label(i)).tag(Int?.some(i)) }
+            }
+            .pickerStyle(.inline)
+        } label: {
+            if let n = item.helixSnapshot {
+                Label(label(n), systemImage: "camera.filters")
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Color.accentColor.opacity(0.15), in: Capsule())
+            } else {
+                Image(systemName: "camera.filters").font(.caption).foregroundStyle(.tertiary)
+            }
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Helix Native snapshot recalled when this song opens in this set")
     }
 
     private var slotFooter: String {

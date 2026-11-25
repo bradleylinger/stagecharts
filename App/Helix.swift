@@ -256,16 +256,18 @@ struct HelixCatalog {
                 }
             }
         }
-        // Expression pedal assignments (controllers 1–3 = EXP 1–3), e.g. the player's volume pedal.
+        // Pedal assignments in the player's Helix Native presets (hardware Helix presets use EXP inputs Native doesn't have).
         for p in presets {
-            let tone = (((p["data"] as? JSON) ?? p)["tone"] as? JSON) ?? [:]
+            let data = (p["data"] as? JSON) ?? p
+            guard (data["device"] as? Int) == 2162944 else { continue }
+            let tone = (data["tone"] as? JSON) ?? [:]
             for (dsp, v) in tone["controller"] as? JSON ?? [:] {
                 for (key, params) in v as? JSON ?? [:] {
                     guard let id = ((tone[dsp] as? JSON)?[key] as? JSON)?["@model"] as? String else { continue }
                     for (param, c) in params as? JSON ?? [:] {
-                        guard let c = c as? JSON, let n = c["@controller"] as? Int, (1...3).contains(n),
-                              cat.pedals[id]?[param] == nil else { continue }
-                        cat.pedals[id, default: [:]][param] = c.filter { ["@controller", "@min", "@max"].contains($0.key) }
+                        // Only MIDI CC (18): Helix Native has no EXP inputs, so EXP 1–3 entries do nothing there.
+                        guard let c = c as? JSON, (c["@controller"] as? Int) == 18, cat.pedals[id]?[param] == nil else { continue }
+                        cat.pedals[id, default: [:]][param] = c.filter { ["@controller", "@cc", "@min", "@max"].contains($0.key) }
                     }
                 }
             }
@@ -346,7 +348,8 @@ struct HelixCatalog {
     }
 
     /// The expression pedal a block's settings follow: what the player's presets use for this model, else for the
-    /// same kind of model, else Helix's usual EXP 1 for wahs and EXP 2 for volume pedals.
+    /// same kind of model. Helix Native's own Knob/Switch automation assignments aren't saved in preset files, so
+    /// usually there's nothing to copy and the player assigns the pedal in Helix Native.
     /// Only wahs and volume pedals: other pedal assignments in the player's presets (e.g. a reverb mix on a pedal)
     /// belong to those presets, not to every new one.
     func pedalAssignments(for id: String) -> [String: JSON] {
@@ -360,8 +363,7 @@ struct HelixCatalog {
            similar.keys.allSatisfy({ m.example[$0] != nil }) {
             return similar
         }
-        guard m.example["Pedal"] != nil else { return [:] }
-        return ["Pedal": ["@controller": isVolume ? 2 : 1, "@min": 0.0, "@max": 1.0]]
+        return [:]
     }
 
     /// A cab model as the cab inside an amp block (amp + cab): its settings, model and on/off only.
@@ -733,7 +735,12 @@ enum HelixBuilder {
         }
         // Expression pedals (wahs, volume): the player's own assignments. A snapshot-controlled setting can't also follow a pedal.
         for (bi, k) in kept.enumerated() {
-            for (p, entry) in catalog.pedalAssignments(for: k.model.id) {
+            let assigned = catalog.pedalAssignments(for: k.model.id)
+            if assigned.isEmpty, k.model.id.hasPrefix("HD2_VolPanVol") || k.model.category.hasPrefix("wah") {
+                warnings.append("In Helix Native, assign \(HelixCatalog.displayName(k.model.id))'s Position to the knob your pedal "
+                                + "controls (Controller Assign, e.g. Knob 1): preset files can't carry that assignment.")
+            }
+            for (p, entry) in assigned {
                 var bc = controller["block\(bi)"] as? JSON ?? [:]
                 if bc[p] != nil {
                     warnings.append("\(HelixCatalog.displayName(k.model.id)) \(p) changes with snapshots, so it isn't on your expression pedal.")
@@ -766,6 +773,7 @@ enum HelixBuilder {
             for (bi, k) in kept.enumerated() {
                 blocks["block\(bi)"] = s.enabled.indices.contains(k.index) ? s.enabled[k.index] : true
             }
+            blocks["split"] = true          // Helix Native saves the split's on/off in every snapshot
             var ctl: JSON = [:]
             for (bi, params) in controlled {
                 var b: JSON = [:]

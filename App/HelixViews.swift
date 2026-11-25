@@ -43,7 +43,7 @@ struct HelixSettingsSection: View {
                 Button("Make a preset from a description…", systemImage: "sparkles") { designing = true }
                     .disabled(catalog == nil)
             } footer: {
-                Text("Puts a volume pedal first in every preset, on the same expression pedal your own presets use (usually EXP 2). For a whole set, use the set's menu: Helix preset for this set…")
+                Text("Puts a volume pedal first in every preset. In Helix Native, assign its Position to the knob your pedal controls (e.g. Knob 1); preset files can't carry that. For a whole set, use the set's menu: Helix preset for this set…")
             }
 
             Section {

@@ -10,6 +10,8 @@ struct HelixSettingsSection: View {
     @AppStorage("helixSendSnapshots") private var sendSnapshots = true
     @AppStorage("helixChannel") private var channel = 1
     @AppStorage("helixVolumePedal") private var volumePedal = true
+    @AppStorage("helixKnobs") private var knobs = 3
+    @AppStorage("helixSwitches") private var switches = 4
     @State private var catalog: HelixCatalog?
     @State private var scanning = false
     @State private var error: String?
@@ -39,11 +41,20 @@ struct HelixSettingsSection: View {
             }
 
             Section {
-                Toggle("Start with my volume pedal", isOn: $volumePedal)
                 Button("Make a preset from a description…", systemImage: "sparkles") { designing = true }
                     .disabled(catalog == nil)
             } footer: {
-                Text("Puts a volume pedal first in every preset. In Helix Native, assign its Position to the knob your pedal controls (e.g. Knob 1); preset files can't carry that. For a whole set, use the set's menu: Helix preset for this set…")
+                Text("For a whole set, use the set's menu: Helix preset for this set…")
+            }
+
+            Section {
+                Toggle("Start with my volume pedal on Knob 1", isOn: $volumePedal)
+                Stepper("Knobs on my controller: \(knobs)", value: $knobs, in: 0...16)
+                Stepper("Switches on my controller: \(switches)", value: $switches, in: 0...16)
+            } header: {
+                Text("Live controls")
+            } footer: {
+                Text("Helix Native's automation Knobs and Switches that your MIDI controller reaches (in Ableton, MIDI-map them on the Helix Native device). Each preset assigns them: Knob 1 to your volume pedal, the other knobs to settings worth riding, and the switches to effects worth turning on and off. The preset shows which is which.")
             }
 
             Section {
@@ -222,6 +233,15 @@ struct HelixPresetView: View {
                 LabeledContent("\(i + 1). \(name)", value: songs.isEmpty ? "–" : songs.joined(separator: ", "))
             }
         }
+        if !b.controls.isEmpty {
+            Section {
+                ForEach(b.controls, id: \.self) { Text($0) }
+            } header: {
+                Text("Live controls")
+            } footer: {
+                Text("Already assigned in the preset: your controller's knobs and switches work as soon as it loads.")
+            }
+        }
         if !b.warnings.isEmpty {
             Section("Notes") { ForEach(b.warnings, id: \.self) { Text($0).font(.caption) } }
         }
@@ -260,6 +280,13 @@ struct HelixPresetView: View {
         }
     }
 
+    /// Settings → Helix → Live controls.
+    static var liveControls: (Bool, Int, Int) {
+        let u = UserDefaults.standard
+        return (u.object(forKey: "helixVolumePedal") as? Bool ?? true, u.object(forKey: "helixKnobs") as? Int ?? 3,
+                u.object(forKey: "helixSwitches") as? Int ?? 4)
+    }
+
     private func run() async {
         guard let catalog else { return }
         working = true; error = nil; saved = nil
@@ -269,14 +296,17 @@ struct HelixPresetView: View {
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-mockHelix") {      // screenshots without calling Claude
                 let d = HelixDesign.mock(catalog: catalog, songs: s.count)
-                built = try HelixBuilder.build(d, catalog: catalog, songCount: s.count,
-                                               volumePedal: UserDefaults.standard.object(forKey: "helixVolumePedal") as? Bool ?? true)
+                let (pedal, knobs, switches) = Self.liveControls
+                built = try HelixBuilder.build(d, catalog: catalog, songCount: s.count, volumePedal: pedal,
+                                               knobs: knobs, switches: switches)
                 design = d; return
             }
             #endif
-            let pedal = UserDefaults.standard.object(forKey: "helixVolumePedal") as? Bool ?? true
-            let d = try await HelixDesigner.design(description: request, songs: s, catalog: catalog, volumePedal: pedal)
-            built = try HelixBuilder.build(d, catalog: catalog, songCount: s.count, volumePedal: pedal)
+            let (pedal, knobs, switches) = Self.liveControls
+            let d = try await HelixDesigner.design(description: request, songs: s, catalog: catalog, volumePedal: pedal,
+                                                   knobs: knobs, switches: switches)
+            built = try HelixBuilder.build(d, catalog: catalog, songCount: s.count, volumePedal: pedal,
+                                           knobs: knobs, switches: switches)
             design = d
         } catch {
             self.error = error.localizedDescription

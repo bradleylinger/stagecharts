@@ -291,7 +291,7 @@ struct HelixCatalog {
                 tone[dsp] = blocks.filter { k, _ in !k.hasPrefix("block") && !k.hasPrefix("cab") }
             }
         }
-        for k in tone.keys where k.hasPrefix("snapshot") || k == "controller" || k == "footswitch" { tone[k] = nil }
+        for k in tone.keys where k.hasPrefix("snapshot") || ["controller", "footswitch", "automation"].contains(k) { tone[k] = nil }
         data["tone"] = tone
         p["data"] = data
         return p
@@ -445,6 +445,16 @@ struct HelixDesign: Codable {
     var songs: [SongSnapshot]
     var summary: String
     var paths: Paths? = nil
+    /// Helix Native's automation Knobs and Switches, which the player's MIDI controller drives.
+    struct Control: Codable {
+        var kind: String          // "knob" or "switch"
+        var number: Int           // Knob 1… / Switch 1…
+        var block: Int
+        var param: String         // a knob's setting; "" for a switch (on/off)
+        var min: Double
+        var max: Double
+    }
+    var controls: [Control]? = nil
 }
 
 extension HelixDesign {
@@ -463,6 +473,10 @@ extension HelixDesign {
                 var st = st; st.block = n; return st
             }
             return s
+        }
+        d.controls = controls?.compactMap { c in
+            guard let n = newIndex[c.block] else { return nil }
+            var c = c; c.block = n; return c
         }
         return d
     }
@@ -503,9 +517,14 @@ enum HelixDesigner {
     its matching cab; to pair it with a different cab instead, set the block's `cab` to that cab's model id (a "cab" from \
     the catalog) — this uses no extra block. Otherwise `cab` is null. Mixing a preamp or amp with a cab it isn't \
     usually paired with is fine when it suits the tone.
-    - Wahs and volume pedals are played with the player's expression pedal; their Pedal setting is only where it \
-    starts. When the request says the player's volume pedal is added automatically, don't add a volume pedal, and \
-    use at most 7 positions.
+    - Live controls (`controls`): the player's MIDI controller drives Helix Native's automation Knobs and Switches \
+    (how many is in the request). Give each switch to a block worth turning on or off by foot during a song (a boost, \
+    a delay, a reverb, a modulation): kind "switch", param "", min 0, max 1. Give knobs to settings worth riding live \
+    (drive gain, a delay or reverb mix, a wah's Pedal): kind "knob", with the setting and the range the knob sweeps \
+    (inside its allowed range). A wah needs a knob on its Pedal. Never put a knob on a setting that snapshots change. \
+    Use each knob or switch number once; leave them out when nothing is worth controlling. `block` is the block's index.
+    - When the request says the player's volume pedal is added automatically, don't add a volume pedal, use at most \
+    7 positions, and count block indices from your own blocks (the pedal isn't one of them).
     - Snapshots (1–8) switch blocks on/off and change settings between songs or parts. `enabled` has one entry per block. \
     `settings` are only the values that differ from the block's own settings in that snapshot. Names at most 10 characters.
     - Delays: for timed delays set TempoSync1 (and TempoSync2 if present) to 0 and set Time (seconds) from the song's BPM: \
@@ -518,8 +537,15 @@ enum HelixDesigner {
 
     static let schema: [String: Any] = [
         "type": "object", "additionalProperties": false,
-        "required": ["name", "blocks", "snapshots", "songs", "summary", "paths"],
+        "required": ["name", "blocks", "snapshots", "songs", "summary", "paths", "controls"],
         "properties": [
+            "controls": ["type": "array", "items": [
+                "type": "object", "additionalProperties": false,
+                "required": ["kind", "number", "block", "param", "min", "max"],
+                "properties": ["kind": ["type": "string", "enum": ["knob", "switch"]], "number": ["type": "integer"],
+                               "block": ["type": "integer"], "param": ["type": "string"],
+                               "min": ["type": "number"], "max": ["type": "number"]],
+            ]],
             "name": ["type": "string"],
             "paths": ["type": ["object", "null"], "additionalProperties": false,
                       "required": ["levelA", "panA", "levelB", "panB", "invertB"],
@@ -560,11 +586,16 @@ enum HelixDesigner {
     ]
 
     static func design(description: String, songs: [HelixSong], catalog: HelixCatalog,
-                       volumePedal: Bool = false) async throws -> HelixDesign {
+                       volumePedal: Bool = false, knobs: Int = 3, switches: Int = 4) async throws -> HelixDesign {
         var msg = "<catalog>\n\(catalog.promptText)\n</catalog>\n\n<request>\n\(description)\n</request>\n"
+        let firstKnob = volumePedal ? 2 : 1
+        msg += "\nLive controls available: "
+            + (knobs >= firstKnob ? "Knobs \(firstKnob)–\(knobs)" : "no knobs")
+            + (switches > 0 ? ", Switches 1–\(switches)." : ", no switches.")
         if volumePedal {
-            msg += "\nThe player's volume pedal (on their expression pedal) is added automatically as the first block.\n"
+            msg += " The player's volume pedal is added automatically as the first block, on Knob 1."
         }
+        msg += "\n"
         if !songs.isEmpty {
             msg += "\n<songs>\n"
             for (i, s) in songs.enumerated() {
@@ -595,6 +626,8 @@ enum HelixBuilder {
         var songSnapshots: [Int: Int]
         var blocks: [String]
         var snapshotNames: [String]
+        /// "Knob 1: Volume Pedal Position", "Switch 1: Heliosphere on/off", …
+        var controls: [String] = []
     }
 
     /// The volume pedal StageCharts puts first when the player asks for one: their own, else Helix's Volume Pedal.
@@ -603,7 +636,8 @@ enum HelixBuilder {
             ?? catalog.models.keys.sorted().first { $0.hasPrefix("HD2_VolPanVol") }
     }
 
-    static func build(_ design: HelixDesign, catalog: HelixCatalog, songCount: Int, volumePedal: Bool = false) throws -> Result {
+    static func build(_ design: HelixDesign, catalog: HelixCatalog, songCount: Int, volumePedal: Bool = false,
+                      knobs: Int = 3, switches: Int = 4) throws -> Result {
         var warnings: [String] = []
         var design = design
         if volumePedal {
@@ -735,12 +769,7 @@ enum HelixBuilder {
         }
         // Expression pedals (wahs, volume): the player's own assignments. A snapshot-controlled setting can't also follow a pedal.
         for (bi, k) in kept.enumerated() {
-            let assigned = catalog.pedalAssignments(for: k.model.id)
-            if assigned.isEmpty, k.model.id.hasPrefix("HD2_VolPanVol") || k.model.category.hasPrefix("wah") {
-                warnings.append("In Helix Native, assign \(HelixCatalog.displayName(k.model.id))'s Position to the knob your pedal "
-                                + "controls (Controller Assign, e.g. Knob 1): preset files can't carry that assignment.")
-            }
-            for (p, entry) in assigned {
+            for (p, entry) in catalog.pedalAssignments(for: k.model.id) {
                 var bc = controller["block\(bi)"] as? JSON ?? [:]
                 if bc[p] != nil {
                     warnings.append("\(HelixCatalog.displayName(k.model.id)) \(p) changes with snapshots, so it isn't on your expression pedal.")
@@ -752,6 +781,53 @@ enum HelixBuilder {
                 controller["block\(bi)"] = bc
             }
         }
+        // Live controls: Helix Native's automation Knobs (slots 0–15) and Switches (16–31), driven by the player's MIDI
+        // controller through the DAW. Stored positionally in tone.automation.@assignments.
+        var slots: [Int: JSON] = [:]
+        var controlNames: [String] = []
+        func label(_ bi: Int) -> String { HelixCatalog.displayName(kept[bi].model.id) }
+        if volumePedal, knobs >= 1, let bi = newIndex[0], kept[bi].model.id.hasPrefix("HD2_VolPanVol"),
+           kept[bi].model.example["Pedal"] != nil {
+            slots[0] = ["@param": "dsp0.block\(bi).Pedal", "@min": 0.0, "@max": 1.0]
+            controlNames.append("Knob 1: \(label(bi)) (your volume pedal)")
+        }
+        for c in design.controls ?? [] {
+            guard let bi = newIndex[c.block] else { continue }
+            if c.kind == "switch" {
+                guard (1...switches).contains(c.number), slots[15 + c.number] == nil else { continue }
+                slots[15 + c.number] = ["@param": "dsp0.block\(bi).@enabled", "@min": false, "@max": true]
+                controlNames.append("Switch \(c.number): \(label(bi)) on/off")
+            } else {
+                guard (1...knobs).contains(c.number), slots[c.number - 1] == nil,
+                      let ex = kept[bi].model.example[c.param], !c.param.hasPrefix("@"), !HelixCatalog.isBool(ex) else { continue }
+                if (controller["block\(bi)"] as? JSON)?[c.param] != nil {
+                    warnings.append("Knob \(c.number) left unassigned: \(label(bi)) \(c.param) changes with snapshots.")
+                    continue
+                }
+                let stereo = (dsp0["block\(bi)"] as? JSON)?["@stereo"] as? Bool ?? false
+                let l = catalog.limits[kept[bi].model.id]?[c.param]
+                var lo = Swift.min(c.min, c.max), hi = Swift.max(c.min, c.max)
+                if let l { lo = l.clamp(lo, stereo: stereo); hi = l.clamp(hi, stereo: stereo) }
+                let int = HelixCatalog.isInteger(ex)
+                slots[c.number - 1] = ["@param": "dsp0.block\(bi).\(c.param)",
+                                       "@min": int ? Int(lo.rounded()) as Any : lo, "@max": int ? Int(hi.rounded()) as Any : hi]
+                controlNames.append("Knob \(c.number): \(label(bi)) \(c.param) (\(HelixCatalog.short(lo))–\(HelixCatalog.short(hi)))")
+            }
+        }
+        for (bi, k) in kept.enumerated() where k.model.category.hasPrefix("wah")
+            && !slots.values.contains(where: { ($0["@param"] as? String) == "dsp0.block\(bi).Pedal" }) {
+            warnings.append("\(label(bi)) has no knob on its Pedal, so it stays parked where it is.")
+        }
+        if let last = slots.keys.max() {
+            tone["automation"] = ["@assignments": (0...last).map { slots[$0] as Any? ?? NSNull() }]
+        } else {
+            tone["automation"] = nil
+        }
+        controlNames.sort { a, b in
+            let ka = a.hasPrefix("Knob"), kb = b.hasPrefix("Knob")
+            return ka != kb ? ka : a.localizedStandardCompare(b) == .orderedAscending
+        }
+
         // The split and merge (always present in Helix; at the ends of the chain when path B isn't used).
         let pj = design.paths ?? .init(levelA: 0, panA: 0.5, levelB: 0, panB: 0.5, invertB: false)
         func level(_ x: Double) -> Double { min(max(x, -60), 12) }
@@ -809,7 +885,7 @@ enum HelixBuilder {
             map[s.song] = min(max(0, s.snapshot), snaps.count - 1)
         }
         return Result(preset: preset, warnings: warnings, songSnapshots: map,
-                      blocks: kept.map { HelixCatalog.displayName($0.model.id) }, snapshotNames: names)
+                      blocks: kept.map { HelixCatalog.displayName($0.model.id) }, snapshotNames: names, controls: controlNames)
     }
 
     /// Claude's number as the parameter's own type (on/off, whole number or decimal); nil for unknown settings.

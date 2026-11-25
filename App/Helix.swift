@@ -53,22 +53,24 @@ struct HelixCatalog {
     var limits: [String: [String: Limit]] = [:]
     /// Model id → Line 6's own name ("Bucket Brigade").
     var names: [String: String] = [:]
+    /// Model id → setting → expression pedal assignment from the player's presets (e.g. volume "Pedal" on EXP 2).
+    var pedals: [String: [String: JSON]] = [:]
     var skeleton: JSON = [:]
     var presetCount = 0
     var scanned = Date()
 
     static func url(in folder: URL) -> URL { folder.appendingPathComponent("catalog.json") }
 
-    // Models that need things StageCharts can't set up (user IR files, loops, hardware sends, pedals).
+    // Models that need things StageCharts can't set up (user IR files, loops, hardware sends and inputs).
     static func usable(_ id: String) -> Bool {
-        !["Impulse", "Looper", "FXLoop", "Send", "Return", "VolPan", "WahWah", "Wah", "Variax", "Input", "Output", "AppDSP"]
+        !["Impulse", "Looper", "FXLoop", "Send", "Return", "Variax", "Input", "Output", "AppDSP"]
             .contains { id.localizedCaseInsensitiveContains($0) }
     }
 
     static func category(_ id: String, type: Int) -> String {
         let n = id.replacingOccurrences(of: "HD2_", with: "")
         let table: [(String, String)] = [
-            ("Preamp", "preamp (needs a cab after it)"), ("Cab", "cab"), ("Dist", "drive / boost / fuzz"),
+            ("Preamp", "preamp (needs a cab after it)"), ("VolPan", "volume / pan"), ("Wah", "wah (on a pedal)"), ("Cab", "cab"), ("Dist", "drive / boost / fuzz"),
             ("Delay", "delay"), ("DL4", "delay"), ("Reverb", "reverb"), ("Chorus", "modulation"), ("Flanger", "modulation"),
             ("Phaser", "modulation"), ("Tremolo", "modulation"), ("Rotary", "modulation"), ("Vibrato", "modulation"),
             ("Mod", "modulation"), ("Compressor", "compressor"), ("Comp", "compressor"), ("EQ", "EQ"), ("Gate", "noise gate"),
@@ -151,10 +153,11 @@ struct HelixCatalog {
                 if !l.isEmpty { limits[id] = l }
             }
         }
-        // Models the presets don't contain, from Line 6's defaults. Preamps (they need a separate cab block), cabs on
-        // their own, send/returns and I/O are left out.
-        let kinds: [String: Int] = ["amp": 3, "delay": 7, "reverb": 7, "distortion": 0, "compressor": 0, "modulation": 0,
-                                    "eq": 0, "filter": 0, "pitch-synth": 0, "gate": 0]
+        // Models the presets don't contain, from Line 6's defaults: amps (with their matching cab), preamps, single
+        // cabs (type 2) and every kind of effect. Send/returns, I/O and the older cab and dual-cab formats are left out.
+        let kinds: [String: Int] = ["amp": 3, "preamp": 1, "cabmicirs": 2, "delay": 7, "reverb": 7, "distortion": 0,
+                                    "compressor": 0, "modulation": 0, "eq": 0, "filter": 0, "pitch-synth": 0, "gate": 0,
+                                    "wah": 0, "volumepan": 0]
         let data = skeleton["data"] as? JSON
         let device = data?["device"] as? Int ?? 2162944
         let version = data?["device_version"] as? Int ?? 0
@@ -182,6 +185,11 @@ struct HelixCatalog {
                 linked["cab0"] = c
                 block["@cab"] = "cab0"
                 block["@bypassvolume"] = block["@bypassvolume"] ?? 1.0
+                block["@stereo"] = nil
+            } else if type == 1 {
+                block["@bypassvolume"] = block["@bypassvolume"] ?? 1.0
+                block["@stereo"] = nil
+            } else if type == 2 {
                 block["@stereo"] = nil
             } else {
                 // Stereo-only models must be placed as stereo.
@@ -243,6 +251,20 @@ struct HelixCatalog {
                 }
             }
         }
+        // Expression pedal assignments (controllers 1–3 = EXP 1–3), e.g. the player's volume pedal.
+        for p in presets {
+            let tone = (((p["data"] as? JSON) ?? p)["tone"] as? JSON) ?? [:]
+            for (dsp, v) in tone["controller"] as? JSON ?? [:] {
+                for (key, params) in v as? JSON ?? [:] {
+                    guard let id = ((tone[dsp] as? JSON)?[key] as? JSON)?["@model"] as? String else { continue }
+                    for (param, c) in params as? JSON ?? [:] {
+                        guard let c = c as? JSON, let n = c["@controller"] as? Int, (1...3).contains(n),
+                              cat.pedals[id]?[param] == nil else { continue }
+                        cat.pedals[id, default: [:]][param] = c.filter { ["@controller", "@min", "@max"].contains($0.key) }
+                    }
+                }
+            }
+        }
         guard !cat.models.isEmpty else { throw HelixError.noPresets }
         guard !cat.skeleton.isEmpty else { throw HelixError.noNativePreset }
         for (id, m) in cat.models {
@@ -288,7 +310,7 @@ struct HelixCatalog {
         }
         let lim = limits.mapValues { $0.mapValues { l -> [Double] in [l.lo, l.hi] + (l.hiStereo.map { [$0] } ?? []) } }
         let j: JSON = ["models": models, "skeleton": skeleton, "presetCount": presetCount,
-                       "scanned": scanned.timeIntervalSince1970, "limits": lim, "names": names]
+                       "scanned": scanned.timeIntervalSince1970, "limits": lim, "names": names, "pedals": pedals]
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try JSONSerialization.data(withJSONObject: j).write(to: Self.url(in: folder), options: .atomic)
     }
@@ -301,6 +323,7 @@ struct HelixCatalog {
         cat.presetCount = j["presetCount"] as? Int ?? 0
         cat.scanned = Date(timeIntervalSince1970: j["scanned"] as? Double ?? 0)
         cat.names = j["names"] as? [String: String] ?? [:]
+        cat.pedals = j["pedals"] as? [String: [String: JSON]] ?? [:]
         for (id, v) in j["limits"] as? [String: [String: [Double]]] ?? [:] {
             cat.limits[id] = v.compactMapValues { a in
                 a.count >= 2 ? Limit(lo: a[0], hi: a[1], hiStereo: a.count > 2 ? a[2] : nil) : nil
@@ -314,6 +337,31 @@ struct HelixCatalog {
         }
         shared = cat
         return cat
+    }
+
+    /// The expression pedal a block's settings follow: what the player's presets use for this model, else for the
+    /// same kind of model, else Helix's usual EXP 1 for wahs and EXP 2 for volume pedals.
+    /// Only wahs and volume pedals: other pedal assignments in the player's presets (e.g. a reverb mix on a pedal)
+    /// belong to those presets, not to every new one.
+    func pedalAssignments(for id: String) -> [String: JSON] {
+        guard let m = models[id] else { return [:] }
+        let isVolume = id.hasPrefix("HD2_VolPanVol")
+        guard isVolume || m.category.hasPrefix("wah") else { return [:] }
+        if let p = pedals[id] { return p }
+        let kind = isVolume ? "volume" : m.category
+        if let similar = pedals.first(where: { k, _ in
+            k.hasPrefix("HD2_VolPanVol") == isVolume && (isVolume || models[k]?.category == kind) })?.value,
+           similar.keys.allSatisfy({ m.example[$0] != nil }) {
+            return similar
+        }
+        guard m.example["Pedal"] != nil else { return [:] }
+        return ["Pedal": ["@controller": isVolume ? 2 : 1, "@min": 0.0, "@max": 1.0]]
+    }
+
+    /// A cab model as the cab inside an amp block (amp + cab): its settings, model and on/off only.
+    func linkedCab(_ id: String) -> JSON? {
+        guard let m = models[id], m.type == 2 else { return nil }
+        return m.example.filter { k, _ in !k.hasPrefix("@") || k == "@model" || k == "@enabled" }
     }
 
     // MARK: For Claude
@@ -353,7 +401,13 @@ extension SongLibrary {
 /// What Claude returns: the chain, the snapshots, and which song uses which snapshot.
 struct HelixDesign: Codable {
     struct Setting: Codable { var param: String; var value: Double }
-    struct Block: Codable { var model: String; var settings: [Setting]; var why: String? }
+    struct Block: Codable {
+        var model: String
+        var settings: [Setting]
+        var why: String?
+        /// For an amp with its own cab: a different cab model to use in place of its matching one.
+        var cab: String? = nil
+    }
     struct SnapshotSetting: Codable { var block: Int; var param: String; var value: Double }
     struct Snapshot: Codable {
         var name: String
@@ -368,6 +422,27 @@ struct HelixDesign: Codable {
     var snapshots: [Snapshot]
     var songs: [SongSnapshot]
     var summary: String
+}
+
+extension HelixDesign {
+    /// The design with `model` as its first block, on in every snapshot (any other block of that model is removed).
+    func withBlockFirst(_ model: String) -> HelixDesign {
+        var d = self
+        let keep = blocks.indices.filter { blocks[$0].model != model }
+        var newIndex: [Int: Int] = [:]
+        for (n, old) in keep.enumerated() { newIndex[old] = n + 1 }
+        d.blocks = [Block(model: model, settings: [], why: "Your volume pedal")] + keep.map { blocks[$0] }
+        d.snapshots = snapshots.map { s in
+            var s = s
+            s.enabled = [true] + keep.map { s.enabled.indices.contains($0) ? s.enabled[$0] : true }
+            s.settings = s.settings.compactMap { st in
+                guard let n = newIndex[st.block] else { return nil }
+                var st = st; st.block = n; return st
+            }
+            return s
+        }
+        return d
+    }
 }
 
 struct HelixSong {
@@ -393,7 +468,13 @@ enum HelixDesigner {
     Delay Time ranges differ a lot between models (some analog delays stop at 0.3 s): pick a delay whose Time range covers \
     every song's delay time.
     - One signal chain of at most 8 blocks, in order (e.g. gate/comp → drives → amp → cab → modulation → delay → reverb). \
-    An amp marked "needs a cab after it" must be followed by a cab block. Prefer an "amp with its own cab" when available.
+    An amp or preamp marked "needs a cab after it" must be followed by a cab block. An "amp with its own cab" comes with \
+    its matching cab; to pair it with a different cab instead, set the block's `cab` to that cab's model id (a "cab" from \
+    the catalog) — this uses no extra block. Otherwise `cab` is null. Mixing a preamp or amp with a cab it isn't \
+    usually paired with is fine when it suits the tone.
+    - Wahs and volume pedals are played with the player's expression pedal; their Pedal setting is only where it \
+    starts. When the request says the player's volume pedal is added automatically, don't add a volume pedal, and \
+    use at most 7 blocks.
     - Snapshots (1–8) switch blocks on/off and change settings between songs or parts. `enabled` has one entry per block. \
     `settings` are only the values that differ from the block's own settings in that snapshot. Names at most 10 characters.
     - Delays: for timed delays set TempoSync1 (and TempoSync2 if present) to 0 and set Time (seconds) from the song's BPM: \
@@ -411,10 +492,11 @@ enum HelixDesigner {
             "name": ["type": "string"],
             "summary": ["type": "string"],
             "blocks": ["type": "array", "items": [
-                "type": "object", "additionalProperties": false, "required": ["model", "settings", "why"],
+                "type": "object", "additionalProperties": false, "required": ["model", "settings", "why", "cab"],
                 "properties": [
                     "model": ["type": "string"],
                     "why": ["type": "string"],
+                    "cab": ["type": ["string", "null"]],
                     "settings": ["type": "array", "items": [
                         "type": "object", "additionalProperties": false, "required": ["param", "value"],
                         "properties": ["param": ["type": "string"], "value": ["type": "number"]],
@@ -440,8 +522,12 @@ enum HelixDesigner {
         ],
     ]
 
-    static func design(description: String, songs: [HelixSong], catalog: HelixCatalog) async throws -> HelixDesign {
+    static func design(description: String, songs: [HelixSong], catalog: HelixCatalog,
+                       volumePedal: Bool = false) async throws -> HelixDesign {
         var msg = "<catalog>\n\(catalog.promptText)\n</catalog>\n\n<request>\n\(description)\n</request>\n"
+        if volumePedal {
+            msg += "\nThe player's volume pedal (on their expression pedal) is added automatically as the first block.\n"
+        }
         if !songs.isEmpty {
             msg += "\n<songs>\n"
             for (i, s) in songs.enumerated() {
@@ -474,8 +560,19 @@ enum HelixBuilder {
         var snapshotNames: [String]
     }
 
-    static func build(_ design: HelixDesign, catalog: HelixCatalog, songCount: Int) throws -> Result {
+    /// The volume pedal StageCharts puts first when the player asks for one: their own, else Helix's Volume Pedal.
+    static func volumeModel(_ catalog: HelixCatalog) -> String? {
+        ["HD2_VolPanVol", "HD2_VolPanVolStereo"].first { catalog.models[$0] != nil }
+            ?? catalog.models.keys.sorted().first { $0.hasPrefix("HD2_VolPanVol") }
+    }
+
+    static func build(_ design: HelixDesign, catalog: HelixCatalog, songCount: Int, volumePedal: Bool = false) throws -> Result {
         var warnings: [String] = []
+        var design = design
+        if volumePedal {
+            if let v = volumeModel(catalog) { design = design.withBlockFirst(v) }
+            else { warnings.append("Your Helix presets don't include a volume pedal, so none was added.") }
+        }
         var preset = catalog.skeleton
         var data = preset["data"] as? JSON ?? [:]
         var tone = data["tone"] as? JSON ?? [:]
@@ -510,10 +607,16 @@ enum HelixBuilder {
                 }
                 block[s.param] = v
             }
-            if let ref = block["@cab"] as? String, let cab = k.model.linked[ref] {
+            if let ref = block["@cab"] as? String, var cab = k.model.linked[ref] {
+                if let other = k.block.cab, other != cab["@model"] as? String {
+                    if let c = catalog.linkedCab(other) { cab = c; cab["@enabled"] = true }
+                    else { warnings.append("\(HelixCatalog.displayName(k.model.id)): kept its own cab (\(other) isn't a cab in your Helix).") }
+                }
                 let name = "cab\(cabCount)"; cabCount += 1
                 block["@cab"] = name
                 dsp0[name] = cab
+            } else if let other = k.block.cab, !other.isEmpty {
+                warnings.append("\(HelixCatalog.displayName(k.model.id)) has no cab of its own, so \(HelixCatalog.displayName(other)) wasn't used.")
             }
             dsp0["block\(bi)"] = block
         }
@@ -559,6 +662,20 @@ enum HelixBuilder {
                 bc[p] = entry
             }
             if !bc.isEmpty { controller["block\(bi)"] = bc }
+        }
+        // Expression pedals (wahs, volume): the player's own assignments. A snapshot-controlled setting can't also follow a pedal.
+        for (bi, k) in kept.enumerated() {
+            for (p, entry) in catalog.pedalAssignments(for: k.model.id) {
+                var bc = controller["block\(bi)"] as? JSON ?? [:]
+                if bc[p] != nil {
+                    warnings.append("\(HelixCatalog.displayName(k.model.id)) \(p) changes with snapshots, so it isn't on your expression pedal.")
+                    continue
+                }
+                var e = entry
+                e["@snapshot_disable"] = false
+                bc[p] = e
+                controller["block\(bi)"] = bc
+            }
         }
         tone["dsp0"] = dsp0
         if !controller.isEmpty { tone["controller"] = ["dsp0": controller] }

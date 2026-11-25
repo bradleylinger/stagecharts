@@ -9,6 +9,7 @@ struct HelixSettingsSection: View {
     @EnvironmentObject var library: SongLibrary
     @AppStorage("helixSendSnapshots") private var sendSnapshots = true
     @AppStorage("helixChannel") private var channel = 1
+    @AppStorage("helixVolumePedal") private var volumePedal = true
     @State private var catalog: HelixCatalog?
     @State private var scanning = false
     @State private var error: String?
@@ -38,10 +39,11 @@ struct HelixSettingsSection: View {
             }
 
             Section {
+                Toggle("Start with my volume pedal", isOn: $volumePedal)
                 Button("Make a preset from a description…", systemImage: "sparkles") { designing = true }
                     .disabled(catalog == nil)
             } footer: {
-                Text("For a whole set, use the set's menu: Helix preset for this set…")
+                Text("Puts a volume pedal first in every preset, on the same expression pedal your own presets use (usually EXP 2). For a whole set, use the set's menu: Helix preset for this set…")
             }
 
             Section {
@@ -267,11 +269,14 @@ struct HelixPresetView: View {
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-mockHelix") {      // screenshots without calling Claude
                 let d = HelixDesign.mock(catalog: catalog, songs: s.count)
-                built = try HelixBuilder.build(d, catalog: catalog, songCount: s.count); design = d; return
+                built = try HelixBuilder.build(d, catalog: catalog, songCount: s.count,
+                                               volumePedal: UserDefaults.standard.object(forKey: "helixVolumePedal") as? Bool ?? true)
+                design = d; return
             }
             #endif
-            let d = try await HelixDesigner.design(description: request, songs: s, catalog: catalog)
-            built = try HelixBuilder.build(d, catalog: catalog, songCount: s.count)
+            let pedal = UserDefaults.standard.object(forKey: "helixVolumePedal") as? Bool ?? true
+            let d = try await HelixDesigner.design(description: request, songs: s, catalog: catalog, volumePedal: pedal)
+            built = try HelixBuilder.build(d, catalog: catalog, songCount: s.count, volumePedal: pedal)
             design = d
         } catch {
             self.error = error.localizedDescription

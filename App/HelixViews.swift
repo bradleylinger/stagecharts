@@ -138,6 +138,15 @@ struct HelixPresetView: View {
     @State private var design: HelixDesign?
     @State private var built: HelixBuilder.Result?
     @State private var saved: URL?
+    @AppStorage("helixResearch") private var researchOnline = true
+    @AppStorage("helixModel") private var model = Claude.model
+    @AppStorage("helixEffort") private var effort = "high"
+    @State private var stage = ""
+    @State private var research: String?
+
+    private static let efforts: [(String, String)] = [
+        ("low", "Low"), ("medium", "Medium"), ("high", "High"), ("xhigh", "Extra high"), ("max", "Max"),
+    ]
 
     private var set: SetList? { library.setList(id: setID) }
     private var catalog: HelixCatalog? { HelixCatalog.load(from: library.helixFolder) }
@@ -156,7 +165,20 @@ struct HelixPresetView: View {
                 } header: {
                     Text("Describe the tones")
                 } footer: {
-                    Text("E.g. \"big crunchy tone with a dotted-eighth delay and a boost\", \"ambient swells for the slow songs\", \"edge-of-breakup clean, U2-style\".")
+                    Text("E.g. \"big crunchy tone with a dotted-eighth delay and a boost\", \"ambient swells for the slow songs\", \"match the electric guitar on Gratitude by Brandon Lake\".")
+                }
+                Section {
+                    Toggle("Research the recordings' guitar tones online", isOn: $researchOnline)
+                    Picker("Model", selection: $model) {
+                        ForEach(Claude.choices, id: \.id) { c in Text("\(c.name) – \(c.note)").tag(c.id) }
+                    }
+                    Picker("Effort", selection: $effort) {
+                        ForEach(Self.efforts, id: \.0) { Text($0.1).tag($0.0) }
+                    }
+                } header: {
+                    Text("AI")
+                } footer: {
+                    Text("Research: Claude first searches the web for rig rundowns and tone guides for the songs in this set and any recording you name, then builds the preset from what it finds. It adds a minute or two and a little cost (web searches are billed per search). Higher effort thinks longer: better on complicated sets, slower and costlier. High suits most presets.")
                 }
                 if let set {
                     Section {
@@ -188,13 +210,14 @@ struct HelixPresetView: View {
                     Button {
                         Task { await run() }
                     } label: {
-                        if working { HStack { ProgressView(); Text("Designing… (about a minute)") } }
+                        if working { HStack { ProgressView(); Text(stage) } }
                         else { Label(built == nil ? "Design preset" : "Design again", systemImage: "sparkles") }
                     }
                     .disabled(working || catalog == nil || request.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     if let error { Text(error).foregroundStyle(.red).font(.callout) }
                 } footer: {
-                    Text("Your description, the song titles/keys/tempos and the list of your Helix models are sent to Anthropic with your API key.")
+                    Text("Your description, the song titles/keys/tempos and the list of your Helix models are sent to Anthropic with your API key."
+                         + (researchOnline ? " The song titles and your description are also used for web searches." : ""))
                 }
                 if let design, let built { result(design, built) }
             }
@@ -223,7 +246,7 @@ struct HelixPresetView: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text("\(i + 1)").font(.caption.monospacedDigit()).foregroundStyle(.secondary).frame(width: 18)
                     Text(name)
-                    if let why = d.blocks.first(where: { HelixCatalog.displayName($0.model) == name })?.why {
+                    if let why = d.blocks.first(where: { HelixCatalog.describe($0.model) == name })?.why {
                         Text(why).font(.caption).foregroundStyle(.secondary).lineLimit(2)
                     }
                 }
@@ -236,6 +259,13 @@ struct HelixPresetView: View {
                 let songs = (set?.items ?? []).enumerated().filter { b.songSnapshots[$0.offset] == i }
                     .compactMap { library.song(id: $0.element.songID)?.song.title }
                 LabeledContent("\(i + 1). \(name)", value: songs.isEmpty ? "–" : songs.joined(separator: ", "))
+            }
+        }
+        if let research, !research.isEmpty {
+            Section {
+                DisclosureGroup("What Claude found about the recordings") {
+                    Text(research).font(.callout).textSelection(.enabled)
+                }
             }
         }
         if !b.controls.isEmpty {
@@ -308,8 +338,15 @@ struct HelixPresetView: View {
             }
             #endif
             let (pedal, knobs, switches) = Self.liveControls
+            research = nil
+            if researchOnline {
+                stage = "Researching the recordings… (a minute or two)"
+                research = try await HelixDesigner.research(description: request, songs: s, model: model, effort: effort)
+            }
+            stage = "Designing… (about a minute)"
             let d = try await HelixDesigner.design(description: request, songs: s, catalog: catalog, volumePedal: pedal,
-                                                   knobs: knobs, switches: switches)
+                                                   knobs: knobs, switches: switches, research: research,
+                                                   model: model, effort: effort)
             built = try HelixBuilder.build(d, catalog: catalog, songCount: s.count, volumePedal: pedal,
                                            knobs: knobs, switches: switches)
             design = d

@@ -52,23 +52,53 @@ enum AIKey {
 enum Claude {
     static let model = "claude-opus-5-5"
 
-    /// Sends one user turn; returns the text of the reply.
+    /// Models the player can choose for the Helix preset designer: (id, name, note).
+    static let choices: [(id: String, name: String, note: String)] = [
+        ("claude-opus-5-5", "Claude Opus 5.5", "recommended"),
+        ("claude-fable-5-2", "Claude Fable 5.2", "most capable, about 2× the cost"),
+        ("claude-sonnet-5-5", "Claude Sonnet 5.5", "faster, about half the cost"),
+    ]
+
+    /// Sends one user turn; returns the text of the reply. With `tools` (server tools such as web search), a turn the
+    /// API pauses is resumed, and only the text after the last tool result is returned (the final answer).
     static func ask(system: String, content: [[String: Any]], effort: String,
-                    schema: [String: Any]? = nil, maxTokens: Int = 16000) async throws -> String {
+                    schema: [String: Any]? = nil, maxTokens: Int = 16000,
+                    model: String = Claude.model, tools: [[String: Any]]? = nil) async throws -> String {
         guard let key = AIKey.value, !key.isEmpty else { throw AIError.noKey }
         var outputConfig: [String: Any] = ["effort": effort]
         if let schema { outputConfig["format"] = ["type": "json_schema", "schema": schema] }
-        let body: [String: Any] = [
-            "model": model,
-            "max_tokens": maxTokens,
-            "system": system,
-            "output_config": outputConfig,
-            "fallbacks": "default",                 // on a policy decline, retry on a fallback model
-            "messages": [["role": "user", "content": content]],
-        ]
+        var messages: [[String: Any]] = [["role": "user", "content": content]]
+        var reply: [[String: Any]] = []
+        for _ in 0..<5 {
+            var body: [String: Any] = [
+                "model": model,
+                "max_tokens": maxTokens,
+                "system": system,
+                "output_config": outputConfig,
+                "fallbacks": "default",                 // on a policy decline, retry on a fallback model
+                "messages": messages,
+            ]
+            if let tools { body["tools"] = tools }
+            let json = try await send(body, key: key)
+            if json["stop_reason"] as? String == "refusal" { throw AIError.refused }
+            let blocks = json["content"] as? [[String: Any]] ?? []
+            reply += blocks
+            // A long server-tool loop pauses: send the turn so far back and the API carries on from there.
+            guard json["stop_reason"] as? String == "pause_turn" else { break }
+            if messages.count == 1 { messages.append(["role": "assistant", "content": reply]) }
+            else { messages[1] = ["role": "assistant", "content": reply] }
+        }
+        let lastTool = reply.lastIndex { $0["type"] as? String != "text" } ?? -1
+        let text = reply[(lastTool + 1)...].filter { $0["type"] as? String == "text" }
+            .compactMap { $0["text"] as? String }.joined()
+        guard !text.isEmpty else { throw AIError.empty }
+        return text
+    }
+
+    private static func send(_ body: [String: Any], key: String) async throws -> [String: Any] {
         var req = URLRequest(url: URL(string: "https://api.anthropic.com/v1/messages")!)
         req.httpMethod = "POST"
-        req.timeoutInterval = 600
+        req.timeoutInterval = 900
         req.setValue("application/json", forHTTPHeaderField: "content-type")
         req.setValue(key, forHTTPHeaderField: "x-api-key")
         req.setValue("2026-10-21", forHTTPHeaderField: "anthropic-version")
@@ -85,13 +115,7 @@ enum Claude {
             default: throw AIError.api("Claude: \(msg)")
             }
         }
-        if json["stop_reason"] as? String == "refusal" { throw AIError.refused }
-        let text = (json["content"] as? [[String: Any]] ?? [])
-            .filter { $0["type"] as? String == "text" }
-            .compactMap { $0["text"] as? String }
-            .joined()
-        guard !text.isEmpty else { throw AIError.empty }
-        return text
+        return json
     }
 }
 

@@ -544,7 +544,9 @@ enum HelixDesigner {
     tones wanted, optionally the songs in a set list (with key, BPM and notes), and a catalog of the models \
     this player's Helix Native has, each with its settings, an example value and the range seen in their presets. \
     Most models also say what real gear Line 6 based them on and describe the sound: choose models by that (e.g. a \
-    Klon-style drive, a Vox-style amp), and when the request names real gear, use the model based on it.
+    Klon-style drive, a Vox-style amp), and when the request names real gear, use the model based on it. \
+    There may also be tone research on the recordings: recreate the documented rigs from the catalog's closest \
+    models (by what they're based on), and say in a block's `why` which recording or part it recreates.
 
     Rules:
     - Use only model ids from the catalog, and only setting names listed for that model. Values are in the \
@@ -634,9 +636,56 @@ enum HelixDesigner {
         ],
     ]
 
+    static let researchSystem = """
+    You research the electric guitar tones on worship recordings so a Helix preset can recreate them. You get a \
+    player's description of the tones they want and, optionally, the songs in their set (title, songwriter, key, BPM). \
+    The names given are songwriters, not necessarily the recording artist: work out the best-known recording, or the \
+    one the description names.
+
+    Search the web for rig rundowns, tone tutorials, worship-guitar patch breakdowns, gear interviews and the \
+    original multitrack/guitar-stem guides for those recordings. For each song (and each recording the description \
+    names), report briefly:
+    - the recording (artist, album, year) and electric guitarist(s), if found
+    - amp(s) and cab, drives/boosts and how hard they're pushed, modulation, delays (note value, e.g. dotted eighth, \
+    and repeats), reverbs (type and size), and anything distinctive (swells, ebow, octave, tremolo, a clean vs. driven part)
+    - how sure you are: "documented" (from a rig rundown, interview or tutorial) or "inferred" (from the genre, era \
+    or how it sounds by reputation)
+
+    Keep it short and factual: notes, not prose. No more than about 150 words per song. Don't invent gear; when \
+    nothing is documented, say so and give the usual approach for that style. End with one line naming the main sources.
+    """
+
+    /// Looks up the gear and settings on the recordings named in the description and the set's songs (web search).
+    static func research(description: String, songs: [HelixSong], model: String, effort: String) async throws -> String {
+        var msg = "<request>\n\(description)\n</request>\n"
+        if !songs.isEmpty {
+            msg += "\n<songs>\n" + songs.enumerated().map { i, s in
+                ["\(i). \(s.title)", s.artist.map { "written by \($0)" }, s.key.map { "key \($0)" }, s.bpm.map { "\($0) BPM" }]
+                    .compactMap { $0 }.joined(separator: " · ")
+            }.joined(separator: "\n") + "\n</songs>\n"
+        }
+        let searches = min(20, 5 + 2 * songs.count)
+        return try await Claude.ask(system: researchSystem, content: [["type": "text", "text": msg]], effort: effort,
+                                    maxTokens: maxTokens(effort, base: 12000), model: model,
+                                    tools: [["type": "web_search_20260209", "name": "web_search", "max_uses": searches]])
+    }
+
+    /// Room for thinking at the higher efforts.
+    static func maxTokens(_ effort: String, base: Int) -> Int {
+        switch effort {
+        case "xhigh": return base * 2
+        case "max": return base * 3
+        default: return base
+        }
+    }
+
     static func design(description: String, songs: [HelixSong], catalog: HelixCatalog,
-                       volumePedal: Bool = false, knobs: Int = 3, switches: Int = 4) async throws -> HelixDesign {
+                       volumePedal: Bool = false, knobs: Int = 3, switches: Int = 4, research: String? = nil,
+                       model: String = Claude.model, effort: String = "high") async throws -> HelixDesign {
         var msg = "<catalog>\n\(catalog.promptText)\n</catalog>\n\n<request>\n\(description)\n</request>\n"
+        if let research, !research.isEmpty {
+            msg += "\n<tone_research>\n\(research)\n</tone_research>\n"
+        }
         let firstKnob = volumePedal ? 2 : 1
         msg += "\nLive controls available: "
             + (knobs >= firstKnob ? "Knobs \(firstKnob)–\(knobs)" : "no knobs")
@@ -659,7 +708,7 @@ enum HelixDesigner {
             msg += "</songs>\n"
         }
         let text = try await Claude.ask(system: system, content: [["type": "text", "text": msg]],
-                                        effort: "high", schema: schema, maxTokens: 16000)
+                                        effort: effort, schema: schema, maxTokens: maxTokens(effort, base: 16000), model: model)
         guard let d = text.data(using: .utf8) else { throw AIError.empty }
         return try JSONDecoder().decode(HelixDesign.self, from: d)
     }

@@ -10,6 +10,7 @@ struct ContentView: View {
     @EnvironmentObject var midi: MIDIController
     @EnvironmentObject var band: BandSync
     @EnvironmentObject var importer: AutoImporter
+    @ObservedObject private var guitars = GuitarStore.shared
     @State private var showUpgradeQueue = false
     @State private var helixSet: SetList?
     @State private var helixDemo = ProcessInfo.processInfo.arguments.contains("-helixDesigner")   // testing
@@ -137,6 +138,13 @@ struct ContentView: View {
                             Button("Sync to Playback…", systemImage: "arrow.triangle.2.circlepath") { playbackSyncSet = set }
                             #endif
                             Button("Helix preset for this set…", systemImage: "guitars") { helixSet = set }
+                            Picker("Guitar for this set", systemImage: "guitars.fill", selection: Binding(
+                                get: { set.guitar },
+                                set: { new in library.updateSet(set.id) { $0.guitar = new }; resendGuitar() })) {
+                                Text("My usual guitar").tag(UUID?.none)
+                                ForEach(guitars.guitars) { Text($0.name).tag(UUID?.some($0.id)) }
+                            }
+                            .pickerStyle(.menu)
                             Button("Print set list…", systemImage: "printer") {
                                 ChartPDF.print(ChartPDF.file(for: rendered(set), name: set.name, setTitle: set.name),
                                                jobName: set.name)
@@ -301,6 +309,7 @@ struct ContentView: View {
                             Text("\(index + 1).").font(.headline.monospacedDigit()).foregroundStyle(.secondary)
                             songRow(title: file.song.title, key: keyText(file, item: item), subtitle: file.song.artists.first)
                             Spacer(minLength: 4)
+                            guitarPicker(set, item)
                             snapshotPicker(set, item, names: snapshotNames)
                             if let cc = midi.mapping.setSlotCC(forPosition: index + 1) {
                                 Text("CC \(cc)")
@@ -327,6 +336,51 @@ struct ContentView: View {
                 }
             }
         }
+    }
+
+    /// The guitar for this song in this set; shown only when it differs from the set's.
+    private func guitarPicker(_ set: SetList, _ item: SetItem) -> some View {
+        let setGuitar = guitars.guitar(set.guitar) ?? guitars.guitar(guitars.defaultID)
+        return Menu {
+            Picker("Guitar", selection: Binding(
+                get: { item.guitar },
+                set: { new in
+                    library.updateItem(set: set.id, item: item.id) { $0.guitar = new }
+                    if selection == "item:" + item.id.uuidString { resendGuitar() }
+                })) {
+                Text("Set's guitar" + (setGuitar.map { " (\($0.name))" } ?? "")).tag(UUID?.none)
+                ForEach(guitars.guitars) { Text($0.name).tag(UUID?.some($0.id)) }
+            }
+            .pickerStyle(.inline)
+        } label: {
+            if let g = guitars.guitar(item.guitar) {
+                Label(Self.shortName(g.name), systemImage: "guitars")
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Color.orange.opacity(0.18), in: Capsule())
+            } else {
+                Image(systemName: "guitars").font(.caption).foregroundStyle(.tertiary)
+            }
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Guitar for this song in this set (sets the Helix guitar block)")
+    }
+
+    /// "Fender Player Stratocaster" → "Stratocaster".
+    static func shortName(_ name: String) -> String {
+        let skip: Set<String> = ["gibson", "fender", "reverend", "prs", "player", "deluxe", "series", "american", "standard"]
+        let words = name.split(separator: " ").filter { !skip.contains($0.lowercased()) }
+        return words.prefix(2).joined(separator: " ").isEmpty ? name : words.prefix(2).joined(separator: " ")
+    }
+
+    /// Sends the open song's guitar again after a change.
+    private func resendGuitar() {
+        guard let sel = selection, sel.hasPrefix("item:"), let set = activeSet,
+              let item = set.items.first(where: { "item:" + $0.id.uuidString == sel }),
+              let g = guitars.guitar(for: item, in: set) else { return }
+        midi.sendHelixGuitar(g)
     }
 
     /// The Helix Native snapshot this song recalls in this set only (not stored with the song).
@@ -484,6 +538,7 @@ struct ContentView: View {
         guard let new, let set = activeSet,
               let i = set.items.firstIndex(where: { "item:" + $0.id.uuidString == new }) else { return }
         if let snap = set.items[i].helixSnapshot { midi.sendHelixSnapshot(snap) }
+        if let g = guitars.guitar(for: set.items[i], in: set) { midi.sendHelixGuitar(g) }
         if !fromRemote { midi.announceSongPicked(position: i + 1) }
     }
 

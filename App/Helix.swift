@@ -505,13 +505,15 @@ struct HelixDesign: Codable {
 }
 
 extension HelixDesign {
-    /// The design with `model` as its first block, on in every snapshot (any other block of that model is removed).
-    func withBlockFirst(_ model: String) -> HelixDesign {
+    /// The design with `model` as its first block, on in every snapshot. With `replacing`, any other block of that
+    /// model is removed (the player's volume pedal replaces one Claude added anyway).
+    func withBlockFirst(_ model: String, why: String = "Your volume pedal", settings: [Setting] = [],
+                        stereo: Bool? = nil, replacing: Bool = true) -> HelixDesign {
         var d = self
-        let keep = blocks.indices.filter { blocks[$0].model != model }
+        let keep = blocks.indices.filter { !replacing || blocks[$0].model != model }
         var newIndex: [Int: Int] = [:]
         for (n, old) in keep.enumerated() { newIndex[old] = n + 1 }
-        d.blocks = [Block(model: model, settings: [], why: "Your volume pedal", lane: "series")] + keep.map { blocks[$0] }
+        d.blocks = [Block(model: model, settings: settings, why: why, lane: "series", stereo: stereo)] + keep.map { blocks[$0] }
         d.snapshots = snapshots.map { s in
             var s = s
             s.enabled = [true] + keep.map { s.enabled.indices.contains($0) ? s.enabled[$0] : true }
@@ -574,8 +576,13 @@ enum HelixDesigner {
     (drive gain, a delay or reverb mix, a wah's Pedal): kind "knob", with the setting and the range the knob sweeps \
     (inside its allowed range). A wah needs a knob on its Pedal. Never put a knob on a setting that snapshots change. \
     Use each knob or switch number once; leave them out when nothing is worth controlling. `block` is the block's index.
-    - When the request says the player's volume pedal is added automatically, don't add a volume pedal, use at most \
-    7 positions, and count block indices from your own blocks (the pedal isn't one of them).
+    - The request may say StageCharts adds blocks of its own first (the player's volume pedal, a guitar EQ). Don't \
+    add those yourself, use at most the positions the request leaves you, and count block indices from your own \
+    blocks (the added ones aren't among them).
+    - The player may switch between several guitars (listed in the request). A guitar EQ added first matches each \
+    guitar's level and tone before the amp, so voice the preset for a typical guitar between them: set amp and \
+    drive gain so it still has headroom with hot humbuckers and enough grit with single coils, and avoid extremes \
+    of brightness or bass that only suit one guitar.
     - Snapshots (1–8) switch blocks on/off and change settings between songs or parts. `enabled` has one entry per block. \
     `settings` are only the values that differ from the block's own settings in that snapshot. Names at most 10 characters.
     - Delays: for timed delays set TempoSync1 (and TempoSync2 if present) to 0 and set Time (seconds) from the song's BPM: \
@@ -681,19 +688,28 @@ enum HelixDesigner {
 
     static func design(description: String, songs: [HelixSong], catalog: HelixCatalog,
                        volumePedal: Bool = false, knobs: Int = 3, switches: Int = 4, research: String? = nil,
-                       model: String = Claude.model, effort: String = "high") async throws -> HelixDesign {
+                       model: String = Claude.model, effort: String = "high",
+                       guitarBlock: Bool = false, guitars: [String] = []) async throws -> HelixDesign {
         var msg = "<catalog>\n\(catalog.promptText)\n</catalog>\n\n<request>\n\(description)\n</request>\n"
         if let research, !research.isEmpty {
             msg += "\n<tone_research>\n\(research)\n</tone_research>\n"
         }
         let firstKnob = volumePedal ? 2 : 1
+        let lastKnob = HelixBuilder.lastAIKnob(knobs, guitarBlock: guitarBlock)
         msg += "\nLive controls available: "
-            + (knobs >= firstKnob ? "Knobs \(firstKnob)–\(knobs)" : "no knobs")
+            + (lastKnob >= firstKnob ? "Knobs \(firstKnob)–\(lastKnob)" : "no knobs")
             + (switches > 0 ? ", Switches 1–\(switches)." : ", no switches.")
-        if volumePedal {
-            msg += " The player's volume pedal is added automatically as the first block, on Knob 1."
+        var added: [String] = []
+        if guitarBlock { added.append("a guitar EQ (first, on Knobs 14–16)") }
+        if volumePedal { added.append("the player's volume pedal (on Knob 1)") }
+        if !added.isEmpty {
+            msg += " StageCharts adds " + added.joined(separator: " and ") + " before your blocks, so you have "
+                + "\(8 - added.count) positions."
         }
         msg += "\n"
+        if !guitars.isEmpty {
+            msg += "\n<guitars>\n" + guitars.map { "- \($0)" }.joined(separator: "\n") + "\n</guitars>\n"
+        }
         if !songs.isEmpty {
             msg += "\n<songs>\n"
             for (i, s) in songs.enumerated() {
@@ -734,13 +750,36 @@ enum HelixBuilder {
             ?? catalog.models.keys.sorted().first { $0.hasPrefix("HD2_VolPanVol") }
     }
 
+    /// The guitar EQ StageCharts puts first: its level, low and high gains follow Knobs 14–16, which StageCharts sets
+    /// over MIDI for the guitar being played (see Guitars.swift).
+    static let guitarModel = "HD2_EQLowShelfHighShelf"
+    static let guitarKnobs: [(knob: Int, param: String, name: String)] = [(14, "Level", "level"), (15, "LowGain", "low"),
+                                                                          (16, "HighGain", "high")]
+    static let guitarRange = 12.0           // each guitar knob sweeps -12…+12 dB
+    /// The highest knob Claude may use (Knobs 14–16 are the guitar's when the guitar block is on).
+    static func lastAIKnob(_ knobs: Int, guitarBlock: Bool) -> Int { guitarBlock ? min(knobs, 13) : knobs }
+
     static func build(_ design: HelixDesign, catalog: HelixCatalog, songCount: Int, volumePedal: Bool = false,
-                      knobs: Int = 3, switches: Int = 4) throws -> Result {
+                      knobs: Int = 3, switches: Int = 4, guitarBlock: Bool = false) throws -> Result {
         var warnings: [String] = []
         var design = design
+        var volumeIndex: Int?, guitarIndex: Int?
         if volumePedal {
-            if let v = volumeModel(catalog) { design = design.withBlockFirst(v) }
+            if let v = volumeModel(catalog) { design = design.withBlockFirst(v); volumeIndex = 0 }
             else { warnings.append("Your Helix presets don't include a volume pedal, so none was added.") }
+        }
+        if guitarBlock {
+            if catalog.models[guitarModel] != nil {
+                design = design.withBlockFirst(guitarModel, why: "Matches your guitar (set by StageCharts)",
+                                               settings: [.init(param: "LowFreq", value: 150), .init(param: "HighFreq", value: 3000),
+                                                          .init(param: "LowGain", value: 0), .init(param: "HighGain", value: 0),
+                                                          .init(param: "Level", value: 0)],
+                                               stereo: false, replacing: false)
+                guitarIndex = 0
+                volumeIndex = volumeIndex.map { $0 + 1 }
+            } else {
+                warnings.append("Your Helix presets don't include the Low/High Shelf EQ, so no guitar block was added.")
+            }
         }
         var preset = catalog.skeleton
         var data = preset["data"] as? JSON ?? [:]
@@ -884,7 +923,14 @@ enum HelixBuilder {
         var slots: [Int: JSON] = [:]
         var controlNames: [String] = []
         func label(_ bi: Int) -> String { HelixCatalog.displayName(kept[bi].model.id) }
-        if volumePedal, knobs >= 1, let bi = newIndex[0], kept[bi].model.id.hasPrefix("HD2_VolPanVol"),
+        if let gi = guitarIndex, let bi = newIndex[gi] {
+            for g in guitarKnobs {
+                slots[g.knob - 1] = ["@param": "dsp0.block\(bi).\(g.param)", "@min": -guitarRange, "@max": guitarRange]
+                controlNames.append("Knob \(g.knob): guitar \(g.name) (set by StageCharts for your guitar)")
+            }
+        }
+        let aiKnobs = lastAIKnob(knobs, guitarBlock: guitarIndex != nil)
+        if let vi = volumeIndex, knobs >= 1, let bi = newIndex[vi], kept[bi].model.id.hasPrefix("HD2_VolPanVol"),
            kept[bi].model.example["Pedal"] != nil {
             slots[0] = ["@param": "dsp0.block\(bi).Pedal", "@min": 0.0, "@max": 1.0]
             controlNames.append("Knob 1: \(label(bi)) (your volume pedal)")
@@ -892,11 +938,11 @@ enum HelixBuilder {
         for c in design.controls ?? [] {
             guard let bi = newIndex[c.block] else { continue }
             if c.kind == "switch" {
-                guard (1...switches).contains(c.number), slots[15 + c.number] == nil else { continue }
+                guard switches >= 1, (1...switches).contains(c.number), slots[15 + c.number] == nil else { continue }
                 slots[15 + c.number] = ["@param": "dsp0.block\(bi).@enabled", "@min": false, "@max": true]
                 controlNames.append("Switch \(c.number): \(label(bi)) on/off")
             } else {
-                guard (1...knobs).contains(c.number), slots[c.number - 1] == nil,
+                guard aiKnobs >= 1, (1...aiKnobs).contains(c.number), slots[c.number - 1] == nil,
                       let ex = kept[bi].model.example[c.param], !c.param.hasPrefix("@"), !HelixCatalog.isBool(ex) else { continue }
                 if (controller["block\(bi)"] as? JSON)?[c.param] != nil {
                     warnings.append("Knob \(c.number) left unassigned: \(label(bi)) \(c.param) changes with snapshots.")

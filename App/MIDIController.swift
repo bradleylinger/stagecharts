@@ -400,16 +400,33 @@ final class MIDIController: ObservableObject {
     func sendHelixSnapshot(_ index: Int) {
         let defaults = UserDefaults.standard
         guard defaults.object(forKey: "helixSendSnapshots") == nil || defaults.bool(forKey: "helixSendSnapshots") else { return }
-        let channel = max(1, min(16, defaults.object(forKey: "helixChannel") as? Int ?? 1))
+        let channel = sendHelixCC(69, max(0, min(7, index)))
+        record("→ sent CC 69 = \(index) ch \(channel)", "Helix snapshot \(index + 1)")
+    }
+
+    /// Helix Native: the guitar block's level, low and high (CC 14–16 → Knobs 14–16, -12…+12 dB over 0–127).
+    func sendHelixGuitar(_ g: MyGuitar) {
+        guard UserDefaults.standard.object(forKey: "helixGuitarBlock") as? Bool ?? true else { return }
+        var channel = 1
+        for (k, db) in zip(HelixBuilder.guitarKnobs, [g.level, g.low, g.high]) {
+            channel = sendHelixCC(k.knob, MyGuitar.cc(db))
+        }
+        record("→ sent CC 14–16 ch \(channel)", "Guitar: \(g.name)")
+    }
+
+    /// One control change on the Helix channel to the "StageCharts" output and the network session. Returns the channel.
+    @discardableResult
+    func sendHelixCC(_ cc: Int, _ value: Int) -> Int {
+        let channel = max(1, min(16, UserDefaults.standard.object(forKey: "helixChannel") as? Int ?? 1))
         let status = UInt32(0xB0 | (channel - 1))
-        var w = (UInt32(0x2) << 28) | (status << 16) | (UInt32(69) << 8) | UInt32(max(0, min(7, index)))
+        var w = (UInt32(0x2) << 28) | (status << 16) | (UInt32(cc & 0x7F) << 8) | UInt32(max(0, min(127, value)))
         var list = MIDIEventList()
         let packet = MIDIEventListInit(&list, ._1_0)
         _ = MIDIEventListAdd(&list, MemoryLayout<MIDIEventList>.size, packet, 0, 1, &w)
         let network = MIDINetworkSession.default().destinationEndpoint()
         if network != 0 { MIDISendEventList(outputPort, network, &list) }
         if virtualSource != 0 { MIDIReceivedEventList(virtualSource, &list) }
-        record("→ sent CC 69 = \(index) ch \(channel)", "Helix snapshot \(index + 1)")
+        return channel
     }
 
     func startLearning(_ target: LearnTarget) {

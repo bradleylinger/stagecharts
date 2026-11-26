@@ -12,6 +12,10 @@ struct HelixSettingsSection: View {
     @AppStorage("helixVolumePedal") private var volumePedal = true
     @AppStorage("helixKnobs") private var knobs = 3
     @AppStorage("helixSwitches") private var switches = 4
+    @AppStorage("helixGuitarBlock") private var guitarBlock = true
+    @ObservedObject private var guitars = GuitarStore.shared
+    @EnvironmentObject var midi: MIDIController
+    @State private var editingGuitar: MyGuitar?
     @State private var catalog: HelixCatalog?
     @State private var scanning = false
     @State private var error: String?
@@ -56,6 +60,50 @@ struct HelixSettingsSection: View {
             } footer: {
                 Text("Helix Native's automation Knobs and Switches that your MIDI controller reaches (in Ableton, MIDI-map them on the Helix Native device). Each preset assigns them: Knob 1 to your volume pedal, the other knobs to settings worth riding, and the switches to effects worth turning on and off. The preset shows which is which.")
             }
+
+            Section {
+                Toggle("Add a guitar block that matches my guitar", isOn: $guitarBlock)
+                Picker("Usual guitar", selection: $guitars.defaultID) {
+                    ForEach(guitars.guitars) { Text($0.name).tag(UUID?.some($0.id)) }
+                }
+                ForEach(guitars.guitars) { g in
+                    Button { editingGuitar = g } label: {
+                        LabeledContent {
+                            Text(String(format: "level %+.1f · low %+.1f · high %+.1f dB", g.level, g.low, g.high))
+                                .font(.caption.monospacedDigit())
+                        } label: {
+                            Text(g.name)
+                            if !g.pickups.isEmpty { Text(g.pickups).font(.caption) }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        Button("Delete", systemImage: "trash", role: .destructive) {
+                            guitars.guitars.removeAll { $0.id == g.id }
+                        }
+                    }
+                }
+                .onDelete { guitars.guitars.remove(atOffsets: $0) }
+                Button("Add a guitar…", systemImage: "plus") {
+                    let g = MyGuitar(name: "New guitar", pickups: "")
+                    guitars.guitars.append(g)
+                    editingGuitar = g
+                }
+                if guitarBlock {
+                    HStack {
+                        Text("For mapping in Ableton:").font(.caption).foregroundStyle(.secondary)
+                        ForEach(HelixBuilder.guitarKnobs, id: \.knob) { k in
+                            Button("CC \(k.knob)") { midi.sendHelixCC(k.knob, 64) }
+                                .help("Sends CC \(k.knob) once so Ableton can learn it for Knob \(k.knob) (\(k.name))")
+                        }
+                    }
+                }
+            } header: {
+                Text("Guitars")
+            } footer: {
+                Text("Claude voices each preset to work across these guitars. With the guitar block on, every new preset starts with a Low/High Shelf EQ whose level, low and high follow Helix Native's Knobs 14, 15 and 16, and StageCharts sets them for the guitar you're playing whenever a song opens (CC 14–16 on the Helix channel). Pick the guitar from a set's menu, or per song in the set list. Click a guitar to tune it by ear. One-time setup in Ableton: MIDI-map Knobs 14, 15 and 16 on the Helix Native device, clicking the matching CC button above for each.")
+            }
+            .sheet(item: $editingGuitar) { g in GuitarEditor(guitar: g) }
 
             Section {
                 Toggle("Recall the song's snapshot when it opens", isOn: $sendSnapshots)
@@ -315,6 +363,11 @@ struct HelixPresetView: View {
         }
     }
 
+    /// Settings → Helix → Guitars: whether to add the guitar block, and the guitars for Claude.
+    static var guitarSetup: (Bool, [String]) {
+        (UserDefaults.standard.object(forKey: "helixGuitarBlock") as? Bool ?? true, GuitarStore.shared.guitars.map(\.promptLine))
+    }
+
     /// Settings → Helix → Live controls.
     static var liveControls: (Bool, Int, Int) {
         let u = UserDefaults.standard
@@ -333,7 +386,7 @@ struct HelixPresetView: View {
                 let d = HelixDesign.mock(catalog: catalog, songs: s.count)
                 let (pedal, knobs, switches) = Self.liveControls
                 built = try HelixBuilder.build(d, catalog: catalog, songCount: s.count, volumePedal: pedal,
-                                               knobs: knobs, switches: switches)
+                                               knobs: knobs, switches: switches, guitarBlock: Self.guitarSetup.0)
                 design = d; return
             }
             #endif
@@ -344,11 +397,12 @@ struct HelixPresetView: View {
                 research = try await HelixDesigner.research(description: request, songs: s, model: model, effort: effort)
             }
             stage = "Designing… (about a minute)"
+            let (guitarBlock, guitarLines) = Self.guitarSetup
             let d = try await HelixDesigner.design(description: request, songs: s, catalog: catalog, volumePedal: pedal,
                                                    knobs: knobs, switches: switches, research: research,
-                                                   model: model, effort: effort)
+                                                   model: model, effort: effort, guitarBlock: guitarBlock, guitars: guitarLines)
             built = try HelixBuilder.build(d, catalog: catalog, songCount: s.count, volumePedal: pedal,
-                                           knobs: knobs, switches: switches)
+                                           knobs: knobs, switches: switches, guitarBlock: guitarBlock)
             design = d
         } catch {
             self.error = error.localizedDescription
@@ -387,3 +441,61 @@ extension HelixDesign {
     }
 }
 #endif
+
+// MARK: - Tuning a guitar by ear
+
+@available(iOS 18, macOS 14, *)
+struct GuitarEditor: View {
+    @State var guitar: MyGuitar
+    @ObservedObject private var store = GuitarStore.shared
+    @EnvironmentObject var midi: MIDIController
+    @Environment(\.dismiss) private var dismiss
+    @State private var live = true
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Name", text: $guitar.name)
+                    TextField("Pickups and character, e.g. \"three single coils; bright, low output\"", text: $guitar.pickups,
+                              axis: .vertical)
+                } footer: {
+                    Text("Claude reads the pickups line when it voices presets.")
+                }
+                Section {
+                    slider("Level", $guitar.level, "More for quieter pickups (single coils), so drives and amps react the same.")
+                    slider("Low (150 Hz shelf)", $guitar.low, "Adds or trims body and boom.")
+                    slider("High (3 kHz shelf)", $guitar.high, "Tames ice-pick single coils or opens up dark humbuckers.")
+                    Toggle("Hear changes while adjusting", isOn: $live)
+                    Button("Reset to 0 dB", systemImage: "arrow.counterclockwise") {
+                        guitar.level = 0; guitar.low = 0; guitar.high = 0
+                    }
+                } header: {
+                    Text("Guitar block")
+                } footer: {
+                    Text("Load a preset made with the guitar block in Helix Native, play this guitar, and adjust until it sits like your others. Changes go to Knobs 14–16 as you move the sliders.")
+                }
+            }
+            .formStyle(.grouped)
+            .navigationTitle(guitar.name)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { store.update(guitar); midi.sendHelixGuitar(guitar); dismiss() }
+                }
+            }
+            .onChange(of: guitar) { _, g in if live { midi.sendHelixGuitar(g) } }
+        }
+        #if os(macOS)
+        .frame(minWidth: 460, minHeight: 460)
+        #endif
+    }
+
+    private func slider(_ title: String, _ value: Binding<Double>, _ hint: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            LabeledContent(title, value: String(format: "%+.1f dB", value.wrappedValue))
+            Slider(value: value, in: -HelixBuilder.guitarRange...HelixBuilder.guitarRange, step: 0.5)
+            Text(hint).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+}

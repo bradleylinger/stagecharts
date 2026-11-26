@@ -8,6 +8,8 @@ struct SetItem: Codable, Identifiable, Hashable {
     var capo: Int? = nil
     /// Helix Native snapshot (0–7) recalled when this song opens (see Helix.swift).
     var helixSnapshot: Int? = nil
+    /// The guitar played on this song in this set (nil = the set's guitar).
+    var guitar: UUID? = nil
 }
 
 struct SetList: Codable, Identifiable, Hashable {
@@ -19,6 +21,8 @@ struct SetList: Codable, Identifiable, Hashable {
     var helixPreset: String? = nil
     /// That preset's snapshot names (index = snapshot), shown beside each song.
     var helixSnapshotNames: [String]? = nil
+    /// The guitar normally played in this set (nil = the usual guitar from Settings → Helix).
+    var guitar: UUID? = nil
 }
 
 extension JSONEncoder {

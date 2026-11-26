@@ -16,6 +16,7 @@ struct HelixSettingsSection: View {
     @ObservedObject private var guitars = GuitarStore.shared
     @EnvironmentObject var midi: MIDIController
     @State private var editingGuitar: MyGuitar?
+    @State private var showingAbletonGuide = false
     @State private var catalog: HelixCatalog?
     @State private var scanning = false
     @State private var error: String?
@@ -46,6 +47,7 @@ struct HelixSettingsSection: View {
 
             Section {
                 Button("Make a preset from a description…", systemImage: "sparkles") { designing = true }
+                Button("Ableton setup guide…", systemImage: "book") { showingAbletonGuide = true }
                     .disabled(catalog == nil)
             } footer: {
                 Text("For a whole set, use the set's menu: Helix preset for this set…")
@@ -104,6 +106,7 @@ struct HelixSettingsSection: View {
                 Text("Claude voices each preset to work across these guitars. With the guitar block on, every new preset starts with a Low/High Shelf EQ whose level, low and high follow Helix Native's Knobs 14, 15 and 16, and StageCharts sets them for the guitar you're playing whenever a song opens (CC 14–16 on the Helix channel). Pick the guitar from a set's menu, or per song in the set list. Click a guitar to tune it by ear. One-time setup in Ableton: MIDI-map Knobs 14, 15 and 16 on the Helix Native device, clicking the matching CC button above for each.")
             }
             .sheet(item: $editingGuitar) { g in GuitarEditor(guitar: g) }
+            .sheet(isPresented: $showingAbletonGuide) { AbletonSetupGuide() }
 
             Section {
                 Toggle("Recall the song's snapshot when it opens", isOn: $sendSnapshots)
@@ -496,6 +499,104 @@ struct GuitarEditor: View {
             LabeledContent(title, value: String(format: "%+.1f dB", value.wrappedValue))
             Slider(value: value, in: -HelixBuilder.guitarRange...HelixBuilder.guitarRange, step: 0.5)
             Text(hint).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+}
+
+// MARK: - Ableton setup guide
+
+/// The one-time Ableton setup for StageCharts + Helix Native, with the player's current channel and counts filled in.
+@available(iOS 18, macOS 14, *)
+struct AbletonSetupGuide: View {
+    @EnvironmentObject var midi: MIDIController
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage("helixChannel") private var channel = 1
+    @AppStorage("helixVolumePedal") private var volumePedal = true
+    @AppStorage("helixKnobs") private var knobs = 3
+    @AppStorage("helixSwitches") private var switches = 4
+    @AppStorage("helixGuitarBlock") private var guitarBlock = true
+    @AppStorage("helixSendSnapshots") private var sendSnapshots = true
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    step(1, "Ableton → Settings → Link, Tempo & MIDI. Under MIDI Ports, find Input: StageCharts and turn on Track and Remote (and Sync if StageCharts sends the clock).")
+                    step(2, "Use the Helix Native AU (Audio Units) plug-in on your guitar track.")
+                    step(3, "Add a MIDI track: MIDI From → StageCharts, Monitor → In, MIDI To → your guitar track → Helix Native. This carries StageCharts' messages to Helix Native.")
+                } header: {
+                    Text("1. Connect StageCharts to Helix Native")
+                } footer: {
+                    Text("On another device (iPad), StageCharts sends over the network session instead: connect it in Audio MIDI Setup → MIDI Network Setup, and use Network Session 1 in place of StageCharts above.")
+                }
+
+                Section {
+                    step(1, "Click MIDI in Ableton's top-right corner (⌘M) to enter MIDI Map mode.")
+                    step(2, "Click the Helix Native setting below on the device's mapping list (in the plug-in's expanded parameter view), then press the matching Send button here. Ableton learns it.")
+                    step(3, "Click MIDI again to leave MIDI Map mode. Repeat whenever you rebuild the Ableton set.")
+                    mapRow("Snapshot Index", "CC 69", "Recalls each song's snapshot when it opens" + (sendSnapshots ? "" : " (turned off in Settings → Helix)")) {
+                        midi.sendHelixCC(69, 0)
+                    }
+                    ForEach(HelixBuilder.guitarKnobs, id: \.knob) { k in
+                        mapRow("Knob \(k.knob)", "CC \(k.knob)", "Guitar \(k.name), set for the guitar you're playing"
+                               + (guitarBlock ? "" : " (guitar block turned off)")) { midi.sendHelixCC(k.knob, 64) }
+                    }
+                } header: {
+                    Text("2. Map StageCharts' messages (channel \(channel))")
+                } footer: {
+                    Text("The channel is the Helix Native MIDI channel in Settings → Helix. Each Send button sends that message once (snapshot 1, or the middle value for a guitar knob).")
+                }
+
+                Section {
+                    if volumePedal {
+                        LabeledContent("Knob 1", value: "your volume (expression) pedal")
+                    }
+                    let first = volumePedal ? 2 : 1
+                    let last = HelixBuilder.lastAIKnob(knobs, guitarBlock: guitarBlock)
+                    if last >= first {
+                        LabeledContent(first == last ? "Knob \(first)" : "Knobs \(first)–\(last)", value: "knobs or faders on your controller")
+                    }
+                    if switches > 0 {
+                        LabeledContent(switches == 1 ? "Switch 1" : "Switches 1–\(switches)", value: "footswitches on your controller")
+                    }
+                } header: {
+                    Text("3. Map your own controller (once)")
+                } footer: {
+                    Text("In MIDI Map mode, click each Helix Native Knob or Switch, then move the pedal, knob or switch on your controller. AI presets assign these the same way every time, so the map never changes; each preset lists what they do under Live controls. Counts come from Settings → Helix → Live controls.")
+                }
+
+                Section {
+                    step(1, "Open a song in a set that has a Helix preset: Helix Native should change snapshot.")
+                    step(2, "Settings → MIDI → monitor shows each message StageCharts sent, e.g. \"→ sent CC 69 = 0 ch \(channel)\".")
+                    step(3, "Nothing happens? Check Remote is on for the StageCharts input, the MIDI track's Monitor is In, and the channel here matches the one you mapped.")
+                } header: {
+                    Text("4. Check it")
+                }
+            }
+            .formStyle(.grouped)
+            .navigationTitle("Ableton setup")
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+        }
+        #if os(macOS)
+        .frame(minWidth: 560, minHeight: 620)
+        #endif
+    }
+
+    private func step(_ n: Int, _ text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text("\(n).").font(.callout.monospacedDigit()).foregroundStyle(.secondary)
+            Text(text).font(.callout)
+        }
+    }
+
+    private func mapRow(_ target: String, _ cc: String, _ what: String, send: @escaping () -> Void) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(target) ← \(cc)")
+                Text(what).font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Send \(cc)", action: send)
         }
     }
 }

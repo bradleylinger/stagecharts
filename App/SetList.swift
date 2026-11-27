@@ -10,6 +10,9 @@ struct SetItem: Codable, Identifiable, Hashable {
     var helixSnapshot: Int? = nil
     /// The guitar played on this song in this set (nil = the set's guitar).
     var guitar: UUID? = nil
+    /// MultiTracks Playback pad for this song in this set: a pad's ContentID, 0 = Playback's default pad,
+    /// nil = leave Playback's choice alone. Written by Sync to Playback (Mac).
+    var playbackPad: Int? = nil
 }
 
 struct SetList: Codable, Identifiable, Hashable {

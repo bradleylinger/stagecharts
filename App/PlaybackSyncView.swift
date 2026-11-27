@@ -10,7 +10,8 @@ extension SongLibrary {
             let s = settings(for: f.id)
             let r = RenderedSong(file: f, semitones: item.semitones ?? s.semitones, capo: 0, tempo: s.tempo)
             return PlaybackSync.Song(title: f.song.title, keyRoot: r.soundingKey?.root, keyMinor: r.soundingKey?.isMinor ?? false,
-                                     keyName: r.soundingKey?.description, bpm: r.tempo, time: f.song.time)
+                                     keyName: r.soundingKey?.description, bpm: r.tempo, time: f.song.time,
+                                     pad: item.playbackPad, itemID: item.id)
         }
     }
 }
@@ -18,6 +19,8 @@ extension SongLibrary {
 /// Set list → the setlist loaded in Playback on this Mac.
 struct PlaybackSyncSheet: View {
     let set: SetList
+    @State private var pads: [PlaybackSync.Pad] = []
+    @State private var defaultPad: Int?
     @EnvironmentObject var library: SongLibrary
     @Environment(\.dismiss) private var dismiss
     @AppStorage("playbackSetTimeSignatures") private var setTimeSignatures = true
@@ -83,6 +86,7 @@ struct PlaybackSyncSheet: View {
                     TableColumn("Playback item") { c in
                         Text(c.item.displayName + (c.item.isClick ? " (click)" : ""))
                     }
+                    TableColumn("Pad") { c in padPicker(c) }.width(min: 150, ideal: 190)
                     TableColumn("Changes") { c in Text(describe(c)).foregroundColor(c.touchesRow ? .primary : .secondary) }
                 }
                 Text("Playback will be quit (like ⌘Q) and reopened. Unsupported by MultiTracks: StageCharts edits Playback's library directly, after a backup. It can't add items – make the Playback setlist with a click item per song first.")
@@ -90,6 +94,31 @@ struct PlaybackSyncSheet: View {
             }
         }
     }
+
+    /// The pad this song plays in Playback for this set; saved on the set item, written by Sync.
+    @ViewBuilder private func padPicker(_ c: PlaybackSync.Change) -> some View {
+        if let itemID = c.song?.itemID, !pads.isEmpty {
+            let current = currentSet.items.first(where: { $0.id == itemID })?.playbackPad
+            let defaultName = pads.first(where: { $0.contentID == defaultPad })?.title
+            Picker("Pad", selection: Binding<Int?>(
+                get: { current },
+                set: { new in
+                    library.updateItem(set: set.id, item: itemID) { $0.playbackPad = new }
+                    load()
+                })) {
+                Text("Leave as is").tag(Int?.none)
+                Text("Playback's default" + (defaultName.map { " (\($0))" } ?? "")).tag(Int?.some(0))
+                Divider()
+                ForEach(pads.filter(\.downloaded)) { p in Text(p.title).tag(Int?.some(p.contentID)) }
+            }
+            .labelsHidden()
+        } else {
+            Text("–").foregroundColor(.secondary)
+        }
+    }
+
+    /// The set as it is now (the sheet was opened with a copy; pad picks change it).
+    private var currentSet: SetList { library.setLists.first(where: { $0.id == set.id }) ?? set }
 
     private var isWorking: Bool { if case .working = stage { return true }; return false }
 
@@ -99,6 +128,7 @@ struct PlaybackSyncSheet: View {
         if let k = c.keyTitle { parts.append("key → \(k)" + (c.needsUpdate ? " (click Update)" : "")) }
         if let b = c.bpm { parts.append("\(b) BPM") }
         if let t = c.time { parts.append(t.title) }
+        if let p = c.pad { parts.append(p.useDefault ? "pad → default" : "pad → \(p.pad?.title ?? "?")") }
         parts += c.notes
         return parts.isEmpty ? "no change" : parts.joined(separator: " · ")
     }
@@ -107,11 +137,11 @@ struct PlaybackSyncSheet: View {
         stage = .loading
         Task.detached {
             do {
-                let (sl, keys, times) = try PlaybackSync.read()
-                let songs = await MainActor.run { library.playbackSongs(set) }
+                let lib = try PlaybackSync.read()
+                let songs = await MainActor.run { library.playbackSongs(currentSet) }
                 let ts = await MainActor.run { setTimeSignatures }
-                let plan = PlaybackSync.plan(songs, setlist: sl, keys: keys, times: times, setTimeSignatures: ts)
-                await MainActor.run { stage = .ready(plan) }
+                let plan = PlaybackSync.plan(songs, library: lib, setTimeSignatures: ts)
+                await MainActor.run { pads = lib.pads; defaultPad = lib.defaultPad; stage = .ready(plan) }
             } catch {
                 await MainActor.run { stage = .failed(error.localizedDescription) }
             }
@@ -130,8 +160,8 @@ struct PlaybackSyncSheet: View {
             stage = .working("Updating Playback's setlist…")
             do {
                 // Re-read after quitting: Playback may have saved changes on the way out.
-                let (sl, keys, times) = try PlaybackSync.read()
-                let plan = PlaybackSync.plan(library.playbackSongs(set), setlist: sl, keys: keys, times: times,
+                let lib = try PlaybackSync.read()
+                let plan = PlaybackSync.plan(library.playbackSongs(currentSet), library: lib,
                                              setTimeSignatures: setTimeSignatures)
                 guard plan.canApply else { stage = .ready(plan); return }
                 let r = try PlaybackSync.apply(plan)

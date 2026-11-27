@@ -32,6 +32,18 @@ enum PlaybackSync {
         var keyName: String?       // e.g. "Bb"
         var bpm: Int?
         var time: String?          // "3/4"
+        var pad: Int? = nil        // pad ContentID, 0 = Playback's default pad, nil = leave as is
+        var itemID: UUID? = nil    // the StageCharts set item
+    }
+
+    /// A pad pack in Playback's library (ZPAD).
+    struct Pad: Identifiable, Hashable {
+        let pk: Int64
+        let contentID: Int
+        let title: String
+        let producer: String?
+        let downloaded: Bool
+        var id: Int { contentID }
     }
 
     struct Item {
@@ -45,12 +57,28 @@ enum PlaybackSync {
         let fok: Int64
         let order: Int64?
         let timeData: String?
+        var arrangement: Int64? = nil   // the ZSONGARRANGEMENT row Playback plays (ZID = ZWORKINGCOPYARRANGEMENTID)
+        var arrangementOpt: Int64 = 0
+        var usesDefaultPad = true
+        var storedPad: Int64? = nil     // ZPAD.Z_PK
         var isClick: Bool { contentType == 12 }
         var isSong: Bool { contentType == 13 }
         var displayName: String { (customName?.isEmpty == false ? customName! : title) }
     }
 
     struct Setlist { let pk: Int64; let opt: Int64; let title: String; let serverVersion: Int64?; let items: [Item] }
+
+    /// Everything read from Playback's library.
+    struct Library {
+        let setlist: Setlist
+        let keys: [KeyRow]
+        let times: [TimeRow]
+        let pads: [Pad]                 // empty if this Playback version stores pads differently
+        let defaultPad: Int?            // ContentID of Playback's default pad (its preferences)
+    }
+
+    /// What a sync does to an item's pad.
+    struct PadChange { let useDefault: Bool; let pad: Pad? }
 
     struct KeyRow { let id: Int64; let title: String; let root: Int; let minor: Bool }
     struct TimeRow { let id: Int64; let title: String }
@@ -65,9 +93,11 @@ enum PlaybackSync {
         var keyTitle: String?
         var bpm: Int?
         var time: TimeRow?
+        var pad: PadChange?
         var needsUpdate = false    // MultiTracks song re-keyed: select it in Playback and click Update
         var notes: [String] = []
-        var touchesRow: Bool { name != nil || keyID != nil || bpm != nil || time != nil }
+        var touchesRow: Bool { name != nil || keyID != nil || bpm != nil || time != nil || pad != nil }
+        var touchesSong: Bool { name != nil || keyID != nil || bpm != nil || time != nil }
     }
 
     struct Plan {
@@ -126,8 +156,18 @@ enum PlaybackSync {
         "ZMETADATAKEY": ["ZID", "ZTITLE"],
         "ZMETADATATIMESIGNATURE": ["ZSTOREDID", "ZTITLE"],
     ]
+    /// Needed for pads only; without them the sync still runs, just without the Pad column.
+    static let padColumns: [String: [String]] = [
+        "ZSONG": ["ZWORKINGCOPYARRANGEMENTID"],
+        "ZSONGARRANGEMENT": ["Z_PK", "Z_OPT", "ZSONG", "ZID", "ZUSEDEFAULTPAD", "ZSTOREDPAD"],
+        "ZPAD": ["Z_PK", "ZCONTENTID", "ZTITLE", "ZPRODUCER", "ZSTOREDDOWNLOADEDAUDIOBYTECOUNT"],
+    ]
+    static var prefsURL: URL {
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(
+            "Library/Containers/\(bundleID)/Data/Library/Preferences/\(bundleID).plist")
+    }
 
-    static func read(at url: URL = storeURL) throws -> (Setlist, [KeyRow], [TimeRow]) {
+    static func read(at url: URL = storeURL) throws -> Library {
         guard FileManager.default.fileExists(atPath: url.path) else { throw Failure.notInstalled }
         // Read a private copy (all three files), so Playback's live files are never opened while it runs.
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("playback-read-\(UUID().uuidString)", isDirectory: true)
@@ -143,15 +183,33 @@ enum PlaybackSync {
         guard lists.count == 1, let pk = lists[0][0].int else {
             throw Failure.schema(lists.isEmpty ? "no setlist is loaded – open one in Playback first" : "\(lists.count) setlists stored")
         }
+        let hasPads = (try? checkColumns(db, padColumns)) != nil
+        let padJoin = hasPads ? """
+            , a.Z_PK, a.Z_OPT, a.ZUSEDEFAULTPAD, a.ZSTOREDPAD FROM ZSONG s
+            LEFT JOIN ZSONGARRANGEMENT a ON a.ZSONG = s.Z_PK AND a.ZID = s.ZWORKINGCOPYARRANGEMENTID
+            """ : " FROM ZSONG s"
         let items = try db.rows("""
-            SELECT Z_PK, Z_OPT, ZCONTENTTYPEID, ZTITLE, ZCUSTOMNAME, ZKEYID, ZBPM, Z_FOK_SETLIST, ZORDER,
-                   CAST(ZTIMESIGNATURESDATA AS TEXT)
-            FROM ZSONG WHERE ZSETLIST = ? ORDER BY Z_FOK_SETLIST
+            SELECT s.Z_PK, s.Z_OPT, s.ZCONTENTTYPEID, s.ZTITLE, s.ZCUSTOMNAME, s.ZKEYID, s.ZBPM, s.Z_FOK_SETLIST, s.ZORDER,
+                   CAST(s.ZTIMESIGNATURESDATA AS TEXT)\(padJoin)
+            WHERE s.ZSETLIST = ? ORDER BY s.Z_FOK_SETLIST
             """, [.int(pk)]).map { r in
-            Item(pk: r[0].int ?? 0, opt: r[1].int ?? 0, contentType: r[2].int ?? 0, title: r[3].text ?? "",
-                 customName: r[4].text, keyID: r[5].int, bpm: r[6].double, fok: r[7].int ?? 0, order: r[8].int,
-                 timeData: r[9].text)
+            var it = Item(pk: r[0].int ?? 0, opt: r[1].int ?? 0, contentType: r[2].int ?? 0, title: r[3].text ?? "",
+                          customName: r[4].text, keyID: r[5].int, bpm: r[6].double, fok: r[7].int ?? 0, order: r[8].int,
+                          timeData: r[9].text)
+            if hasPads, let a = r[10].int {
+                it.arrangement = a; it.arrangementOpt = r[11].int ?? 0
+                it.usesDefaultPad = (r[12].int ?? 1) != 0; it.storedPad = r[13].int
+            }
+            return it
         }
+        let pads: [Pad] = hasPads ? try db.rows("""
+            SELECT Z_PK, ZCONTENTID, ZTITLE, ZPRODUCER, ZSTOREDDOWNLOADEDAUDIOBYTECOUNT FROM ZPAD ORDER BY ZTITLE
+            """).compactMap { r in
+            guard let pk = r[0].int, let cid = r[1].int, let t = r[2].text else { return nil }
+            return Pad(pk: pk, contentID: Int(cid), title: t, producer: r[3].text, downloaded: (r[4].int ?? 0) > 0)
+        } : []
+        let prefs = NSDictionary(contentsOf: prefsURL)
+        let defaultPad = (prefs?["PadPlayerDefaultPadContentID"] as? NSNumber)?.intValue
         let keys = try db.rows("SELECT ZID, ZTITLE FROM ZMETADATAKEY").compactMap { r -> KeyRow? in
             guard let id = r[0].int, let t = r[1].text, let (root, minor) = parseKey(t) else { return nil }
             return KeyRow(id: id, title: t, root: root, minor: minor)
@@ -161,11 +219,14 @@ enum PlaybackSync {
             return TimeRow(id: id, title: t.replacingOccurrences(of: " ", with: ""))
         }
         let l = lists[0]
-        return (Setlist(pk: pk, opt: l[1].int ?? 0, title: l[2].text ?? "", serverVersion: l[3].int, items: items), keys, times)
+        return Library(setlist: Setlist(pk: pk, opt: l[1].int ?? 0, title: l[2].text ?? "", serverVersion: l[3].int, items: items),
+                       keys: keys, times: times, pads: pads, defaultPad: defaultPad)
     }
 
-    static func checkSchema(_ db: DB) throws {
-        for (table, cols) in requiredColumns {
+    static func checkSchema(_ db: DB) throws { try checkColumns(db, requiredColumns) }
+
+    static func checkColumns(_ db: DB, _ required: [String: [String]]) throws {
+        for (table, cols) in required {
             let have = Set(try db.rows("PRAGMA table_info(\(table))").compactMap { $0[1].text })
             if have.isEmpty { throw Failure.schema("missing table \(table)") }
             let missing = cols.filter { !have.contains($0) }
@@ -199,7 +260,8 @@ enum PlaybackSync {
     // MARK: Planning
 
     /// Matches set songs to Playback items: MultiTracks songs by title, the rest onto click items in order.
-    static func plan(_ songs: [Song], setlist: Setlist, keys: [KeyRow], times: [TimeRow], setTimeSignatures: Bool) -> Plan {
+    static func plan(_ songs: [Song], library lib: Library, setTimeSignatures: Bool) -> Plan {
+        let setlist = lib.setlist, keys = lib.keys, times = lib.times
         var problems: [String] = [], warnings: [String] = []
         var free = setlist.items
         var assigned: [(Song, Item)] = []
@@ -255,6 +317,18 @@ enum PlaybackSync {
             } else {
                 c.notes.append("not a click or MultiTracks song – left as is")
             }
+            if let want = s.pad, it.isClick || it.isSong {
+                if it.arrangement == nil {
+                    if !lib.pads.isEmpty { c.notes.append("pad not set: Playback has no arrangement for this item") }
+                } else if want == 0 {
+                    if !it.usesDefaultPad { c.pad = PadChange(useDefault: true, pad: nil) }
+                } else if let pad = lib.pads.first(where: { $0.contentID == want }) {
+                    if !pad.downloaded { c.notes.append("pad \(pad.title) isn't downloaded in Playback – left as is") }
+                    else if it.usesDefaultPad || it.storedPad != pad.pk { c.pad = PadChange(useDefault: false, pad: pad) }
+                } else {
+                    c.notes.append("pad not in Playback's library – left as is")
+                }
+            }
             changes.append(c)
         }
         // Items that aren't in the StageCharts set go to the end, unchanged, in their current order.
@@ -308,6 +382,16 @@ enum PlaybackSync {
                     sets.append("ZTIMESIGNATURESDATA = CAST(? AS BLOB)"); args.append(.text(json))
                 }
                 if c.bpm != nil || c.time != nil { sets.append("ZHASBUILTCLICKLOCALLY = 0") }
+                if let p = c.pad, let a = c.item.arrangement {
+                    // The arrangement Playback plays: "use the default pad" off and the chosen pad, or back to the default.
+                    let n = p.useDefault
+                        ? try db.run("UPDATE ZSONGARRANGEMENT SET ZUSEDEFAULTPAD = 1, Z_OPT = Z_OPT + 1 WHERE Z_PK = ? AND Z_OPT = ? AND ZSONG = ?",
+                                     [.int(a), .int(c.item.arrangementOpt), .int(c.item.pk)])
+                        : try db.run("UPDATE ZSONGARRANGEMENT SET ZUSEDEFAULTPAD = 0, ZSTOREDPAD = ?, Z_OPT = Z_OPT + 1 WHERE Z_PK = ? AND Z_OPT = ? AND ZSONG = ?",
+                                     [.int(p.pad?.pk ?? 0), .int(a), .int(c.item.arrangementOpt), .int(c.item.pk)])
+                    guard n == 1 else { throw Failure.guardFailed("“\(c.item.displayName)” pad") }
+                    if sets.isEmpty { changed += 1 }
+                }
                 guard !sets.isEmpty else { continue }
                 sets.append("Z_OPT = Z_OPT + 1")
                 let n = try db.run("UPDATE ZSONG SET \(sets.joined(separator: ", ")) WHERE Z_PK = ? AND Z_OPT = ? AND ZSETLIST = ? AND Z_FOK_SETLIST = ?",

@@ -4,6 +4,13 @@ import Combine
 /// One of the player's guitars and how the Helix guitar block evens it out (dB, -12…+12): level before the amp,
 /// low shelf (150 Hz) and high shelf (3 kHz).
 struct MyGuitar: Codable, Identifiable, Hashable {
+    /// "Fender Player Stratocaster" → "Stratocaster".
+    static func shortName(_ name: String) -> String {
+        let skip: Set<String> = ["gibson", "fender", "reverend", "prs", "player", "deluxe", "series", "american", "standard"]
+        let words = name.split(separator: " ").filter { !skip.contains($0.lowercased()) }
+        return words.prefix(2).joined(separator: " ").isEmpty ? name : words.prefix(2).joined(separator: " ")
+    }
+
     var id = UUID()
     var name: String
     /// Pickups and character, for Claude ("three single coils; bright, low output").

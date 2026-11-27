@@ -31,6 +31,8 @@ struct MIDIRoutingMonitor: View {
                 Text("Each line is a route. The left box lights when its input sends anything; the line and right box light when MIDI is passed along.")
             }
 
+            helixSection
+
             Section {
                 Toggle("Only routed messages", isOn: $routedOnly)
                 let rows = snap.recent.reversed().filter { !routedOnly || !$0.sends.isEmpty }.prefix(80)
@@ -55,7 +57,8 @@ struct MIDIRoutingMonitor: View {
                 let s = midi.router.snapshot()
                 if s.seq != snap.seq { snap = s }
                 let t = Date()
-                if let latest = (s.sourceLast.values.max()), t.timeIntervalSince(latest) < 1.5 { now = t }
+                let latest = [s.sourceLast.values.max(), midi.helixSent.values.map(\.time).max()].compactMap { $0 }.max()
+                if let latest, t.timeIntervalSince(latest) < 1.5 { now = t }
                 else if t.timeIntervalSince(now) > 1.5 { now = t }
                 try? await Task.sleep(nanoseconds: 100_000_000)
             }
@@ -63,6 +66,43 @@ struct MIDIRoutingMonitor: View {
     }
 
     // MARK: Pieces
+
+    @AppStorage("helixChannel") private var helixChannel = 1
+    @AppStorage("helixSendSnapshots") private var helixSnapshots = true
+    @AppStorage("helixGuitarBlock") private var helixGuitarBlock = true
+
+    /// What Settings → Helix sends: StageCharts → Helix Native (through Ableton), lit as each message goes out.
+    private var helixSection: some View {
+        let dest = MIDINetworkSession.default().isEnabled ? "StageCharts out + network" : "StageCharts out"
+        let rows: [(key: String, from: String, detail: String, to: String, on: Bool)] = [
+            ("snapshot", "Song picked", "per song in the set", "Snapshot · CC 69", helixSnapshots),
+            ("guitar", "Guitar chosen", "per set or per song", "Guitar block · CC 14–16", helixGuitarBlock),
+        ] + (midi.helixSent["other"] != nil ? [("other", "Test button", "Settings → Helix", "Knob", true)] : [])
+        return Section {
+            ForEach(rows, id: \.key) { r in
+                let sent = midi.helixSent[r.key]
+                HStack(spacing: 0) {
+                    EndpointBox(title: r.from, device: r.detail, channel: "StageCharts", level: level(sent?.time))
+                    RouteConnector(last: sent?.text, level: level(sent?.time), count: sent?.count ?? 0)
+                    EndpointBox(title: "Helix Native", device: r.to,
+                                channel: "Ch. \(helixChannel) · \(dest)", level: level(sent?.time))
+                }
+                .padding(.vertical, 4)
+                .opacity(r.on ? 1 : 0.4)
+                .overlay(alignment: .topTrailing) {
+                    if !r.on { Text("Off").font(.caption2.weight(.bold)).foregroundStyle(.secondary) }
+                }
+            }
+        } header: {
+            HStack {
+                Text("Helix")
+                Spacer()
+                Button("Clear") { midi.clearHelixSent() }.font(.caption)
+            }
+        } footer: {
+            Text("Set in Settings → Helix. StageCharts sends these itself (they don't come from an input). In Ableton they reach Helix Native through a MIDI track from StageCharts; see Settings → Helix → Ableton setup guide.")
+        }
+    }
 
     /// Every input, with a light that blinks when it sends something.
     private var inputsStrip: some View {
@@ -120,6 +160,8 @@ struct MIDIRoutingMonitor: View {
             var list = MIDIEventList(); let p = MIDIEventListInit(&list, ._1_0); var ws = [w]
             _ = MIDIEventListAdd(&list, MemoryLayout<MIDIEventList>.size, p, 0, 1, &ws)
             midi.router.route(&list, sourceID: midi.routes.first?.sourceID ?? 1)
+            if i % 5 == 0 { midi.sendHelixSnapshot(Int(i / 5 % 8)) }
+            if i % 7 == 0, let g = GuitarStore.shared.guitars.randomElement() { midi.sendHelixGuitar(g) }
             try? await Task.sleep(nanoseconds: 400_000_000)
         }
     }
@@ -160,7 +202,7 @@ private struct RouteMapRow: View {
     var body: some View {
         HStack(spacing: 0) {
             EndpointBox(title: route.fromTitle, device: sourceDevice, channel: route.inChannelText, level: inLevel)
-            connector
+            RouteConnector(last: last, level: outLevel, count: count)
             EndpointBox(title: route.toTitle, device: route.destLabel.isEmpty ? nil : route.destName,
                         channel: route.outChannelText, level: outLevel)
         }
@@ -171,17 +213,25 @@ private struct RouteMapRow: View {
         }
     }
 
-    private var connector: some View {
+}
+
+/// The line between two boxes: the last message above, a count below; lights as MIDI passes.
+private struct RouteConnector: View {
+    let last: String?
+    let level: Double
+    let count: Int
+
+    var body: some View {
         VStack(spacing: 3) {
             Text(last ?? " ").font(.caption2.monospacedDigit()).lineLimit(1).minimumScaleFactor(0.7)
-                .foregroundStyle(outLevel > 0 ? Color.primary : Color.secondary)
+                .foregroundStyle(level > 0 ? Color.primary : Color.secondary)
             ZStack {
                 Capsule().fill(Color.secondary.opacity(0.3)).frame(height: 2)
-                Capsule().fill(Color.accentColor).frame(height: 3).opacity(outLevel)
+                Capsule().fill(Color.accentColor).frame(height: 3).opacity(level)
             }
             .overlay(alignment: .trailing) {
                 Image(systemName: "arrowtriangle.right.fill").font(.system(size: 9))
-                    .foregroundStyle(outLevel > 0 ? Color.accentColor : Color.secondary.opacity(0.5))
+                    .foregroundStyle(level > 0 ? Color.accentColor : Color.secondary.opacity(0.5))
                     .offset(x: 3)
             }
             Text(count == 0 ? " " : "\(count) sent").font(.caption2).foregroundStyle(.secondary)

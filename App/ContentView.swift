@@ -369,11 +369,7 @@ struct ContentView: View {
     }
 
     /// "Fender Player Stratocaster" → "Stratocaster".
-    static func shortName(_ name: String) -> String {
-        let skip: Set<String> = ["gibson", "fender", "reverend", "prs", "player", "deluxe", "series", "american", "standard"]
-        let words = name.split(separator: " ").filter { !skip.contains($0.lowercased()) }
-        return words.prefix(2).joined(separator: " ").isEmpty ? name : words.prefix(2).joined(separator: " ")
-    }
+    static func shortName(_ name: String) -> String { MyGuitar.shortName(name) }
 
     /// Sends the open song's guitar again after a change.
     private func resendGuitar() {

@@ -402,6 +402,7 @@ final class MIDIController: ObservableObject {
         guard defaults.object(forKey: "helixSendSnapshots") == nil || defaults.bool(forKey: "helixSendSnapshots") else { return }
         let channel = sendHelixCC(69, max(0, min(7, index)))
         record("→ sent CC 69 = \(index) ch \(channel)", "Helix snapshot \(index + 1)")
+        helixSent["snapshot"]?.text = "CC 69 = \(index) · snapshot \(index + 1)"
     }
 
     /// Helix Native: the guitar block's level, low and high (CC 14–16 → Knobs 14–16, -12…+12 dB over 0–127).
@@ -412,6 +413,7 @@ final class MIDIController: ObservableObject {
             channel = sendHelixCC(k.knob, MyGuitar.cc(db))
         }
         record("→ sent CC 14–16 ch \(channel)", "Guitar: \(g.name)")
+        helixSent["guitar"]?.text = "CC 14–16 · \(MyGuitar.shortName(g.name))"
     }
 
     /// One control change on the Helix channel to the "StageCharts" output and the network session. Returns the channel.
@@ -426,8 +428,16 @@ final class MIDIController: ObservableObject {
         let network = MIDINetworkSession.default().destinationEndpoint()
         if network != 0 { MIDISendEventList(outputPort, network, &list) }
         if virtualSource != 0 { MIDIReceivedEventList(virtualSource, &list) }
+        let key = cc == 69 ? "snapshot" : HelixBuilder.guitarKnobs.contains(where: { $0.knob == cc }) ? "guitar" : "other"
+        let v = max(0, min(127, value))
+        helixSent[key] = HelixSend(time: Date(), text: "CC \(cc) = \(v)", count: (helixSent[key]?.count ?? 0) + 1)
         return channel
     }
+
+    /// The last Helix message of each kind ("snapshot", "guitar", "other"), for MIDI monitor's routing map.
+    struct HelixSend { var time: Date; var text: String; var count: Int }
+    @Published private(set) var helixSent: [String: HelixSend] = [:]
+    func clearHelixSent() { helixSent = [:] }
 
     func startLearning(_ target: LearnTarget) {
         learnNotice = nil

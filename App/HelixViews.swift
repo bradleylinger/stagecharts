@@ -628,7 +628,7 @@ struct MC8Section: View {
         } header: {
             Text("Morningstar MC8")
         } footer: {
-            Text("For the MC8's “\(bank)” bank: A = page down (CC 80), E = page up (CC 81), B C D F G H = Switches 1–6 (CC 49–54 on channel 2). When a song opens, StageCharts names B–D and F–H after what the set's Helix preset put on Switches 1–6. Names are only sent when the MC8 is on that bank, and aren't saved, so other banks are never changed. Close the Morningstar Editor while playing – it can undo the names.")
+            Text("For the MC8's “\(bank)” bank: A = page down (CC 80), E = page up (CC 81), B C D F G H = Switches 1–6 (CC 49–54 on channel 2). When a song opens, StageCharts names B–D and F–H after what the set's Helix preset put on Switches 1–6, with OFF / ON showing the switch's position (e.g. “Scream OFF”, “Scream ON”). Names are only sent when the MC8 is on that bank, and aren't saved, so other banks are never changed. Close the Morningstar Editor while playing – it can undo the names.")
         }
     }
 }

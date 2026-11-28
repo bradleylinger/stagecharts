@@ -54,25 +54,27 @@ final class MC8Link: ObservableObject {
         for (i, preset) in Self.switchPresets.enumerated() {
             let label = Self.label(i < names.count ? names[i] : "", number: i + 1)
             labels.append(label)
-            let payload = Array(label.padding(toLength: 10, withPad: " ", startingAt: 0).utf8).map { $0 & 0x7F }
-            send(Self.frame(op2: 0x01, op3: preset, op4: 0x00, payload: payload), to: dest)   // short name (temporary)
+            // Short name shows while the switch is off, toggle name once pressed on: "Scream OFF" / "Scream ON".
+            func payload(_ s: String) -> [UInt8] { Array(s.padding(toLength: 10, withPad: " ", startingAt: 0).utf8).map { $0 & 0x7F } }
+            send(Self.frame(op2: 0x01, op3: preset, op4: 0x00, payload: payload(label + " OFF")), to: dest)   // temporary
             try? await Task.sleep(nanoseconds: 40_000_000)
-            send(Self.frame(op2: 0x02, op3: preset, op4: 0x00, payload: payload), to: dest)   // toggle name (temporary)
+            send(Self.frame(op2: 0x02, op3: preset, op4: 0x00, payload: payload(label + " ON")), to: dest)    // temporary
             try? await Task.sleep(nanoseconds: 40_000_000)
         }
         lastLabels = labels
         status = "Labelled: " + labels.joined(separator: " · ")
     }
 
-    /// "Heliosphere" → "Heliospher"; empty → "Switch 3". MC8 names are 10 characters, ASCII.
+    /// Up to 6 characters, leaving room for " OFF" in the MC8's 10: "Scream 808" → "Scream", "Heliosphere" → "Helios",
+    /// empty → "Sw 3".
     static func label(_ name: String, number: Int) -> String {
         let ascii = name.folding(options: .diacriticInsensitive, locale: nil).unicodeScalars
             .filter { $0.isASCII && $0.value >= 0x20 && $0.value < 0x7F }.map(String.init).joined()
         let n = ascii.trimmingCharacters(in: .whitespaces)
-        if n.isEmpty { return "Switch \(number)" }
-        if n.count <= 10 { return n }
-        if let first = n.split(separator: " ").first, first.count >= 3, first.count <= 10 { return String(first) }
-        return String(n.prefix(10))
+        if n.isEmpty { return "Sw \(number)" }
+        if n.count <= 6 { return n }
+        let first = n.split(separator: " ").first.map(String.init) ?? n
+        return String(first.prefix(6))
     }
 
     // MARK: Reading the bank name

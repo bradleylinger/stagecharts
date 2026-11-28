@@ -221,7 +221,12 @@ struct ViewerSongView: View {
                         Color.clear
                             .onAppear { contentHeight = max(1, h); scrollOffset = max(0, y) }
                             .onChange(of: h) { contentHeight = max(1, $0) }
-                            .onChange(of: y) { scrollOffset = max(0, $0) }
+                            .onChange(of: y) { new in
+                                scrollOffset = max(0, new)
+                                // Leading the band: followers scroll with this chart (as SongView does).
+                                let maxOffset = h - outer.size.height
+                                if maxOffset > 0 { band.sendScroll(Double(min(1, max(0, new / maxOffset)))) }
+                            }
                     })
                     // 200 invisible markers let us scroll to any fraction of the chart on iPadOS 15.
                     .overlay(alignment: .top) {

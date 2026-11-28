@@ -10,6 +10,7 @@ struct HelixSettingsSection: View {
     @AppStorage("helixSendSnapshots") private var sendSnapshots = true
     @AppStorage("helixChannel") private var channel = 1
     @AppStorage("helixVolumePedal") private var volumePedal = true
+    @AppStorage("helixDriveKnob") private var driveKnob = true
     @AppStorage("helixKnobs") private var knobs = 3
     @AppStorage("helixSwitches") private var switches = 4
     @AppStorage("helixGuitarBlock") private var guitarBlock = true
@@ -55,6 +56,7 @@ struct HelixSettingsSection: View {
 
             Section {
                 Toggle("Start with my volume pedal on Knob 1", isOn: $volumePedal)
+                Toggle("Knob 2 rides the drive pedal's gain", isOn: $driveKnob)
                 Stepper("Knobs on my controller: \(knobs)", value: $knobs, in: 0...16)
                 Stepper("Switches on my controller: \(switches)", value: $switches, in: 0...16)
             } header: {

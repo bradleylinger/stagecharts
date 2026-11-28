@@ -699,6 +699,11 @@ enum HelixDesigner {
         msg += "\nLive controls available: "
             + (lastKnob >= firstKnob ? "Knobs \(firstKnob)–\(lastKnob)" : "no knobs")
             + (switches > 0 ? ", Switches 1–\(switches)." : ", no switches.")
+        if HelixBuilder.driveKnob, lastKnob >= 2 {
+            msg += " Knob 2 is the player's drive knob: include at least one drive / boost / fuzz block and put Knob 2 on "
+                + "its gain (Gain, Drive, Fuzz or Sustain), sweeping from a light push to plenty, so the player can pull "
+                + "the drive back or dig in per song and section. Use the other knobs for anything else."
+        }
         var added: [String] = []
         if guitarBlock { added.append("a guitar EQ (first, on Knobs 14–16)") }
         if volumePedal { added.append("the player's volume pedal (on Knob 1)") }
@@ -758,6 +763,8 @@ enum HelixBuilder {
     static let guitarRange = 12.0           // each guitar knob sweeps -12…+12 dB
     /// The highest knob Claude may use (Knobs 14–16 are the guitar's when the guitar block is on).
     static func lastAIKnob(_ knobs: Int, guitarBlock: Bool) -> Int { guitarBlock ? min(knobs, 13) : knobs }
+    /// Knob 2 always rides a drive pedal's gain (Settings → Helix → Live controls).
+    static var driveKnob: Bool { UserDefaults.standard.object(forKey: "helixDriveKnob") as? Bool ?? true }
 
     static func build(_ design: HelixDesign, catalog: HelixCatalog, songCount: Int, volumePedal: Bool = false,
                       knobs: Int = 3, switches: Int = 4, guitarBlock: Bool = false) throws -> Result {
@@ -942,6 +949,10 @@ enum HelixBuilder {
                 slots[15 + c.number] = ["@param": "dsp0.block\(bi).@enabled", "@min": false, "@max": true]
                 controlNames.append("Switch \(c.number): \(label(bi)) on/off")
             } else {
+                if c.number == 2, driveKnob, !kept[bi].model.id.contains("Dist") {
+                    warnings.append("Knob 2 is your drive knob, so it wasn't put on \(label(bi)) \(c.param).")
+                    continue
+                }
                 guard aiKnobs >= 1, (1...aiKnobs).contains(c.number), slots[c.number - 1] == nil,
                       let ex = kept[bi].model.example[c.param], !c.param.hasPrefix("@"), !HelixCatalog.isBool(ex) else { continue }
                 if (controller["block\(bi)"] as? JSON)?[c.param] != nil {
@@ -956,6 +967,24 @@ enum HelixBuilder {
                 slots[c.number - 1] = ["@param": "dsp0.block\(bi).\(c.param)",
                                        "@min": int ? Int(lo.rounded()) as Any : lo, "@max": int ? Int(hi.rounded()) as Any : hi]
                 controlNames.append("Knob \(c.number): \(label(bi)) \(c.param) (\(HelixCatalog.short(lo))–\(HelixCatalog.short(hi)))")
+            }
+        }
+        // Knob 2 = the drive's gain (Settings → Helix), if Claude didn't already assign it.
+        if driveKnob, aiKnobs >= 2, slots[1] == nil {
+            let gainParams = ["Gain", "Drive", "Fuzz", "Sustain", "Boost"]
+            let pick = kept.indices.lazy.compactMap { bi -> (Int, String)? in
+                guard kept[bi].model.id.contains("Dist") else { return nil }
+                let snap = controller["block\(bi)"] as? JSON
+                guard let p = gainParams.first(where: { kept[bi].model.example[$0] != nil && snap?[$0] == nil }) else { return nil }
+                return (bi, p)
+            }.first
+            if let (bi, p) = pick {
+                let l = catalog.limits[kept[bi].model.id]?[p]
+                let lo = l?.lo ?? 0, hi = l?.hi ?? 1
+                slots[1] = ["@param": "dsp0.block\(bi).\(p)", "@min": lo, "@max": hi]
+                controlNames.append("Knob 2: \(label(bi)) \(p) (your drive knob)")
+            } else {
+                warnings.append("No drive pedal in this preset, so Knob 2 (your drive knob) does nothing.")
             }
         }
         for (bi, k) in kept.enumerated() where k.model.category.hasPrefix("wah")

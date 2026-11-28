@@ -115,6 +115,11 @@ struct SettingsView: View {
                     }
                 }
             }
+            .safeAreaInset(edge: .bottom) {
+                Text("StageCharts \(BandSync.appVersion)")
+                    .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                    .frame(maxWidth: .infinity).padding(.vertical, 8)
+            }
             .searchable(text: $search, placement: .sidebar, prompt: "Search settings")
             .navigationTitle("Settings")
             #if os(macOS)
@@ -301,7 +306,7 @@ struct SettingsView: View {
                 Toggle("Follow the leader's scrolling", isOn: $band.followsScrolling)
             }
             if band.role == .lead && !band.peers.isEmpty {
-                ForEach(band.peers, id: \.self) { Label($0, systemImage: "ipad") }
+                ForEach(band.peers, id: \.self) { Label($0 + band.versionNote(for: $0), systemImage: "ipad") }
             }
         } header: {
             Text("Band follow mode")

@@ -27,6 +27,18 @@ final class BandSync: NSObject, ObservableObject {
     @Published var role: Role = .off { didSet { if role != oldValue { restart() } } }
     @Published private(set) var peers: [String] = []
     @Published private(set) var leaderName: String?
+    /// App versions of the other devices, by device name (followers send theirs when joining; the leader advertises its own).
+    @Published private(set) var peerVersions: [String: String] = [:]
+    /// "1.0.14 (72)" – this device's StageCharts version.
+    static var appVersion: String {
+        let i = Bundle.main.infoDictionary
+        return "\(i?["CFBundleShortVersionString"] as? String ?? "?") (\(i?["CFBundleVersion"] as? String ?? "?"))"
+    }
+    /// " · 1.0.14 (72)", or a warning when it differs from this device.
+    func versionNote(for peer: String) -> String {
+        guard let v = peerVersions[peer] else { return "" }
+        return v == Self.appVersion ? " · \(v)" : " · \(v) (this device: \(Self.appVersion))"
+    }
     /// Follower: also follow the leader's scrolling (off = scroll yourself; songs still follow).
     @Published var followsScrolling: Bool = UserDefaults.standard.object(forKey: "followScrolling") as? Bool ?? true {
         didSet { UserDefaults.standard.set(followsScrolling, forKey: "followScrolling") }
@@ -64,7 +76,7 @@ final class BandSync: NSObject, ObservableObject {
         switch role {
         case .off: return "Off"
         case .lead: return peers.isEmpty ? "Leading – waiting for band" : "Leading \(peers.count) device\(peers.count == 1 ? "" : "s")"
-        case .follow: return leaderName.map { "Following \($0)" } ?? "Looking for a leader…"
+        case .follow: return leaderName.map { "Following \($0)" + versionNote(for: $0) } ?? "Looking for a leader…"
         }
     }
 
@@ -81,7 +93,7 @@ final class BandSync: NSObject, ObservableObject {
         session = s
         switch role {
         case .lead:
-            let a = MCNearbyServiceAdvertiser(peer: me, discoveryInfo: ["role": "lead"], serviceType: Self.serviceType)
+            let a = MCNearbyServiceAdvertiser(peer: me, discoveryInfo: ["role": "lead", "version": Self.appVersion], serviceType: Self.serviceType)
             a.delegate = self
             a.startAdvertisingPeer()
             advertiser = a
@@ -164,16 +176,22 @@ extension BandSync: MCSessionDelegate {
 extension BandSync: MCNearbyServiceAdvertiserDelegate {
     nonisolated func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didReceiveInvitationFromPeer peerID: MCPeerID,
                                 withContext context: Data?, invitationHandler: @escaping (Bool, MCSession?) -> Void) {
-        Task { @MainActor in invitationHandler(self.role == .lead, self.session) }   // leader accepts band members
+        let version = context.flatMap { String(data: $0, encoding: .utf8) }
+        Task { @MainActor in
+            if let version { self.peerVersions[peerID.displayName] = version }
+            invitationHandler(self.role == .lead, self.session)      // leader accepts band members
+        }
     }
 }
 
 extension BandSync: MCNearbyServiceBrowserDelegate {
     nonisolated func browser(_ browser: MCNearbyServiceBrowser, foundPeer peerID: MCPeerID, withDiscoveryInfo info: [String: String]?) {
         guard info?["role"] == "lead" else { return }
+        let version = info?["version"]
         Task { @MainActor in
             guard self.role == .follow, let s = self.session, s.connectedPeers.isEmpty else { return }
-            browser.invitePeer(peerID, to: s, withContext: nil, timeout: 15)
+            if let version { self.peerVersions[peerID.displayName] = version }
+            browser.invitePeer(peerID, to: s, withContext: Self.appVersion.data(using: .utf8), timeout: 15)
         }
     }
     nonisolated func browser(_ browser: MCNearbyServiceBrowser, lostPeer peerID: MCPeerID) {

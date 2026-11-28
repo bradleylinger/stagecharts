@@ -265,8 +265,10 @@ struct SongView: View {
                        onSave: { saveNote($0) },
                        onDelete: e.isNew ? nil : { deleteNote(e.note) })
         }
-        .onChange(of: midi.command) { _, cmd in
-            if let cmd { perform(cmd.action, sectionCount: song.sections.count) }
+        // onReceive, not onChange: on macOS the view behind a sheet (e.g. Settings) stops updating,
+        // so page turns from a pedal would be dropped while Settings is open.
+        .onReceive(midi.$command.compactMap { $0 }) { cmd in
+            perform(cmd.action, sectionCount: song.sections.count)
         }
         .toolbar { toolbar(sectionCount: song.sections.count) }
         .navigationTitle(song.title)

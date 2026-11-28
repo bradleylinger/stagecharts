@@ -154,6 +154,7 @@ struct ViewerSongView: View {
     let itemID: UUID?
 
     @State private var contentHeight: CGFloat = 1
+    @State private var scrollOffset: CGFloat = 0     // how far the chart is scrolled (for page up / down)
     @State private var swipeOffset: CGFloat = 0
     @State private var viewingNote: SongNote?
 
@@ -168,10 +169,6 @@ struct ViewerSongView: View {
     private var size: CGFloat { 22 * settings.fontScale }
     private var rendered: RenderedSong { RenderedSong(file: file, semitones: semitones, capo: capo, tempo: library.settings(for: file.id).tempo) }
 
-    private struct ContentHeightKey: PreferenceKey {
-        static var defaultValue: CGFloat = 1
-        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-    }
 
     var body: some View {
         content
@@ -219,7 +216,12 @@ struct ViewerSongView: View {
                     .padding(.vertical, size * 1.2)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(GeometryReader { g in
-                        Color.clear.preference(key: ContentHeightKey.self, value: g.size.height)
+                        // Measured directly: preferences from inside the ScrollView didn't reach it on macOS 14.
+                        let h = g.size.height, y = -g.frame(in: .named("chartScroll")).minY
+                        Color.clear
+                            .onAppear { contentHeight = max(1, h); scrollOffset = max(0, y) }
+                            .onChange(of: h) { contentHeight = max(1, $0) }
+                            .onChange(of: y) { scrollOffset = max(0, $0) }
                     })
                     // 200 invisible markers let us scroll to any fraction of the chart on iPadOS 15.
                     .overlay(alignment: .top) {
@@ -231,9 +233,8 @@ struct ViewerSongView: View {
                         .allowsHitTesting(false)
                     }
                 }
-                .onPreferenceChange(ContentHeightKey.self) { contentHeight = max(1, $0) }
-                .onChange(of: midi.command) { cmd in
-                    guard let cmd else { return }
+                .coordinateSpace(name: "chartScroll")
+                .onReceive(midi.$command.compactMap { $0 }) { cmd in   // onReceive: also while a sheet is open
                     let maxOffset = max(0, contentHeight - outer.size.height)
                     let page = outer.size.height * 0.8
                     func go(_ y: CGFloat) {
@@ -247,7 +248,8 @@ struct ViewerSongView: View {
                             withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(ids[n - 1], anchor: .top) }
                         }
                     case .scrollTo(let f): go(maxOffset * f)
-                    case .pageDown: go(page)       // approximate on iPadOS 15 (no offset tracking)
+                    case .pageDown: go(scrollOffset + page)
+                    case .pageUp: go(scrollOffset - page)
                     default: break
                     }
                 }

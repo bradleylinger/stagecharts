@@ -219,7 +219,7 @@ struct ContentView: View {
             SongSelectBrowser(start: importer.browserURL ?? SongSelect.home)
         }
         .overlay(alignment: .bottom) { ToastView().animation(.easeInOut, value: importer.toast) }
-        .onChange(of: midi.command) { _, cmd in handleMIDI(cmd) }
+        .onReceive(midi.$command.compactMap { $0 }) { handleMIDI($0) }   // also while a sheet is open
         .onChange(of: activeSetRaw) { _, _ in selectFirst(); leadSendSet() }
         .onChange(of: selection) { _, new in selectionChanged(new) }
         .onChange(of: library.setLists) { _, _ in leadSendSet() }

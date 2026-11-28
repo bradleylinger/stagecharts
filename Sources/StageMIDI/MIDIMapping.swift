@@ -149,6 +149,13 @@ public struct MIDIMapping: Codable, Equatable {
     public var listenChannel: Int = 1             // 0 = omni, else 1-16
     public var programChangeSelectsSong = true
     public var bindings: [String: MIDITrigger]    // StageAction.rawValue → trigger
+    /// Second triggers that also fire an action, e.g. the MC8 StageCharts bank's CC 80/81 alongside a learned note.
+    public var extraBindings: [String: MIDITrigger] = MIDIMapping.defaultExtraBindings
+    /// The StageCharts bank on a Morningstar MC8 sends CC 80 (Page down) and CC 81 (Page up); its editor API can't send notes.
+    public static let defaultExtraBindings: [String: MIDITrigger] = [
+        StageAction.pageDown.rawValue: MIDITrigger(.controlChange, 80),
+        StageAction.pageUp.rawValue: MIDITrigger(.controlChange, 81),
+    ]
     /// Set-list slots: CC (firstCC + n - 1) opens song n of the loaded set (default CC 101–110).
     public var setSlotsEnabled = true
     public var setSlotFirstCC = 101
@@ -166,7 +173,7 @@ public struct MIDIMapping: Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case listenChannel, programChangeSelectsSong, bindings, setSlotsEnabled, setSlotFirstCC, setSlotCount
-        case sendSongChanges, sendKind
+        case sendSongChanges, sendKind, extraBindings
     }
 
     /// Tolerates mappings saved by earlier versions (missing keys get defaults).
@@ -180,6 +187,7 @@ public struct MIDIMapping: Codable, Equatable {
         setSlotCount = try c.decodeIfPresent(Int.self, forKey: .setSlotCount) ?? 10
         sendSongChanges = try c.decodeIfPresent(Bool.self, forKey: .sendSongChanges) ?? false
         sendKind = try c.decodeIfPresent(SendKind.self, forKey: .sendKind) ?? .setSlotCC
+        extraBindings = try c.decodeIfPresent([String: MIDITrigger].self, forKey: .extraBindings) ?? MIDIMapping.defaultExtraBindings
     }
 
     /// Outgoing message (status, data1, data2) announcing that set position `n` was picked on the device.
@@ -228,6 +236,7 @@ public struct MIDIMapping: Codable, Equatable {
     /// Removes `trigger` from every action (used when a song claims it).
     public mutating func release(_ trigger: MIDITrigger) {
         for (k, v) in bindings where v == trigger { bindings[k] = nil }
+        for (k, v) in extraBindings where v == trigger { extraBindings[k] = nil }
     }
 
     public func trigger(for action: StageAction) -> MIDITrigger? { bindings[action.rawValue] }
@@ -240,6 +249,10 @@ public struct MIDIMapping: Codable, Equatable {
         if let trigger {
             for other in StageAction.allCases where other != action && bindings[other.rawValue] == trigger {
                 bindings[other.rawValue] = nil
+                displaced = other
+            }
+            for other in StageAction.allCases where other != action && extraBindings[other.rawValue] == trigger {
+                extraBindings[other.rawValue] = nil
                 displaced = other
             }
         }
@@ -255,7 +268,9 @@ public struct MIDIMapping: Codable, Equatable {
         let follow = listenChannel != 0      // one listen channel → triggers' own channels don't matter
         let isRelease: Bool = { if case .controlChange(_, _, 0) = m { return true }; return false }()
         for action in StageAction.allCases {
-            guard let t = bindings[action.rawValue], t.matches(m, ignoreChannel: follow) else { continue }
+            let hit = [bindings[action.rawValue], extraBindings[action.rawValue]].compactMap { $0 }
+                .contains { $0.matches(m, ignoreChannel: follow) }
+            guard hit else { continue }
             if action.isContinuous {
                 guard case .controlChange(_, _, let v) = m else { continue }
                 if action == .goToSection { return v > 0 ? .goToSection(v) : nil }

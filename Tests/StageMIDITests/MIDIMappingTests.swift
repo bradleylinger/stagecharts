@@ -136,3 +136,18 @@ final class MIDIMappingTests: XCTestCase {
         XCTAssertEqual(back, m)
     }
 }
+
+final class ExtraBindingTests: XCTestCase {
+    func testMC8BankCCsPageAlongsideNotes() {
+        let m = MIDIMapping()
+        XCTAssertEqual(m.resolve(.controlChange(channel: 1, controller: 80, value: 127)), .perform(.pageDown))
+        XCTAssertEqual(m.resolve(.controlChange(channel: 1, controller: 81, value: 127)), .perform(.pageUp))
+        XCTAssertEqual(m.resolve(.noteOn(channel: 1, note: 1, velocity: 127)), .perform(.pageDown))
+        XCTAssertNil(m.resolve(.controlChange(channel: 1, controller: 80, value: 0)))
+    }
+    func testOldSavedMappingGetsExtras() throws {
+        let old = #"{"listenChannel":1,"programChangeSelectsSong":true,"bindings":{}}"#.data(using: .utf8)!
+        let m = try JSONDecoder().decode(MIDIMapping.self, from: old)
+        XCTAssertEqual(m.extraBindings[StageAction.pageUp.rawValue], MIDITrigger(.controlChange, 81))
+    }
+}

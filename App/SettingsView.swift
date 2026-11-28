@@ -368,6 +368,10 @@ struct SettingsView: View {
                         Text(midi.mapping.trigger(for: action)?.label(showChannel: omni) ?? "Not mapped")
                             .font(.caption.monospaced())
                             .foregroundStyle(midi.mapping.trigger(for: action) == nil ? Color.secondary : Color.chord)
+                        if let extra = midi.mapping.extraBindings[action.rawValue] {
+                            Text("also \(extra.label(showChannel: omni)) (MC8 StageCharts bank)")
+                                .font(.caption2).foregroundStyle(.secondary)
+                        }
                     }
                     Spacer()
                     if midi.mapping.trigger(for: action) != nil {

@@ -624,6 +624,7 @@ struct MC8Section: View {
                 }
                 TextField("Bank name", text: $bank)
                 HStack { Text("Status"); Spacer(); Text(mc8.status).foregroundColor(.secondary).multilineTextAlignment(.trailing) }
+                Button("Check MC8") { mc8.check() }
             }
         } header: {
             Text("Morningstar MC8")

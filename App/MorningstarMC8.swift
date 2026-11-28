@@ -42,7 +42,9 @@ final class MC8Link: ObservableObject {
     private func sendLabels(_ names: [String]) async {
         guard let dest = destination else { status = "Choose the MIDI output that reaches the MC8"; return }
         // Only write when the MC8 says it's on the StageCharts bank (writes always go to its current bank).
-        guard let current = await currentBankName(dest) else {
+        var reply = await currentBankName(dest)
+        if reply == nil, !Task.isCancelled { reply = await currentBankName(dest) }    // Bluetooth can be slow: once more
+        guard let current = reply else {
             status = "The MC8 didn't answer – check the MIDI output and that it's connected"; return
         }
         guard !Task.isCancelled else { return }
@@ -77,6 +79,26 @@ final class MC8Link: ObservableObject {
         return String(first.prefix(6))
     }
 
+    /// Settings → "Check MC8": asks for the bank name and reports what came back.
+    func check() {
+        Task {
+            guard let dest = destination else { status = "Choose the MIDI output that reaches the MC8"; return }
+            status = "Asking the MC8…"
+            let start = Date()
+            if let name = await currentBankName(dest) {
+                let ms = Int(Date().timeIntervalSince(start) * 1000)
+                let n = name.trimmingCharacters(in: .whitespaces)
+                status = "MC8 answered in \(ms) ms: on bank “\(n.isEmpty ? "(no name)" : n)”"
+                    + (n.caseInsensitiveCompare(bankName) == .orderedSame ? " – ready" : " – switch to “\(bankName)” for labels")
+            } else {
+                status = "No answer from the MC8 on that output" + (lastSysex.map { " (last SysEx seen: \($0))" } ?? "")
+            }
+        }
+    }
+
+    /// The last Morningstar SysEx received from any input (for troubleshooting).
+    @Published private(set) var lastSysex: String?
+
     // MARK: Reading the bank name
 
     private func currentBankName(_ dest: MIDIEndpointRef) async -> String? {
@@ -85,7 +107,7 @@ final class MC8Link: ObservableObject {
             pendingBankName = c
             send(Self.frame(op2: 0x30), to: dest)
             Task { [weak self] in
-                try? await Task.sleep(nanoseconds: 800_000_000)
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
                 self?.pendingBankName?.resume(returning: nil); self?.pendingBankName = nil
             }
         }
@@ -94,7 +116,9 @@ final class MC8Link: ObservableObject {
     /// A complete SysEx message from any MIDI source.
     func received(_ bytes: [UInt8]) {
         // Reply: F0 00 21 24 <model> <x> 70 <op2> <op3> <op4=size> … payload from index 16 … cs F7
-        guard bytes.count > 17, bytes[1] == 0x00, bytes[2] == 0x21, bytes[3] == 0x24, bytes[6] == 0x70 else { return }
+        guard bytes.count > 6, bytes[1] == 0x00, bytes[2] == 0x21, bytes[3] == 0x24 else { return }
+        lastSysex = bytes.prefix(12).map { String(format: "%02X", $0) }.joined(separator: " ") + (bytes.count > 12 ? " …" : "")
+        guard bytes.count > 17, bytes[6] == 0x70 else { return }
         if bytes[7] == 0x30, let c = pendingBankName {
             let size = Int(bytes[9])
             let text = bytes.dropFirst(16).prefix(size)

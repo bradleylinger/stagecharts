@@ -17,6 +17,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("chartStyle") private var styleRaw = ChartStyle.classic.rawValue
     @AppStorage("chartColumns") private var columnsRaw = ChartColumns.auto.rawValue
+    @AppStorage(PageTurn.storageKey) private var pageTurnRaw = PageTurn.scroll.rawValue
     var showsDoneButton = true
     @State private var pickingFolder = false
     @State private var pickingSong = false
@@ -74,7 +75,7 @@ struct SettingsView: View {
         /// Extra words the search matches.
         var keywords: String {
             switch self {
-            case .display: return "chart style columns theme text chord diagram guitar piano fingering tap"
+            case .display: return "chart style columns theme text chord diagram guitar piano fingering tap page turn up down pedal scroll"
             case .band: return "follow lead leader followers ipads scrolling"
             case .library: return "google drive sync folder icloud dropbox ccli report usage"
             case .songs: return "songselect import upgrade downloads ai convert claude photo scan api key"
@@ -180,6 +181,13 @@ struct SettingsView: View {
                     Picker("Columns", selection: $columnsRaw) {
                         ForEach(ChartColumns.allCases) { Text($0.title).tag($0.rawValue) }
                     }
+                }
+                Section {
+                    Picker("Page up / down", selection: $pageTurnRaw) {
+                        ForEach(PageTurn.allCases) { Text($0.title).tag($0.rawValue) }
+                    }
+                } footer: {
+                    Text("For a foot pedal, MIDI or the keyboard's Page Up/Down. A whole page moves a full screen and keeps the last line at the top so you don't lose your place.")
                 }
                 Section {
                     Toggle("Tap a chord to see how to play it", isOn: $chordTapHelp)

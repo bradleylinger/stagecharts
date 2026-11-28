@@ -241,10 +241,11 @@ struct ViewerSongView: View {
                 .coordinateSpace(name: "chartScroll")
                 .onReceive(midi.$command.compactMap { $0 }) { cmd in   // onReceive: also while a sheet is open
                     let maxOffset = max(0, contentHeight - outer.size.height)
-                    let page = outer.size.height * 0.8
-                    func go(_ y: CGFloat) {
+                    let turn = PageTurn.current
+                    let page = turn.distance(height: outer.size.height, size: size)
+                    func go(_ y: CGFloat, duration: Double = 0.3) {
                         let marker = Int((min(max(0, y), maxOffset) / contentHeight * 200).rounded(.down))
-                        withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo("m\(min(199, marker))", anchor: .top) }
+                        withAnimation(.easeInOut(duration: duration)) { proxy.scrollTo("m\(min(199, marker))", anchor: .top) }
                     }
                     switch cmd.action {
                     case .goToSection(let n):
@@ -253,8 +254,8 @@ struct ViewerSongView: View {
                             withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(ids[n - 1], anchor: .top) }
                         }
                     case .scrollTo(let f): go(maxOffset * f)
-                    case .pageDown: go(scrollOffset + page)
-                    case .pageUp: go(scrollOffset - page)
+                    case .pageDown: go(scrollOffset + page, duration: turn.duration)
+                    case .pageUp: go(scrollOffset - page, duration: turn.duration)
                     default: break
                     }
                 }

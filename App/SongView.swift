@@ -447,8 +447,10 @@ struct SongView: View {
 
     private func perform(_ action: MIDIAction, sectionCount: Int) {
         switch action {
-        case .pageDown: scroll(toY: metrics.offset + metrics.container * 0.8)
-        case .pageUp: scroll(toY: metrics.offset - metrics.container * 0.8)
+        case .pageDown, .pageUp:
+            let turn = PageTurn.current
+            let d = turn.distance(height: metrics.container - metrics.insetTop, size: size)
+            scroll(toY: metrics.offset + (action == .pageDown ? d : -d), duration: turn.duration)
         case .scrollTo(let f): scroll(toY: metrics.maxOffset * f, duration: 0.15)
         case .nextSection: goToSection(min(sectionCount - 1, currentSection + 1))
         case .previousSection: goToSection(max(-1, currentSection - 1))

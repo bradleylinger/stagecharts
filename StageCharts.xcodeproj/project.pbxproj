@@ -28,6 +28,7 @@
 		54D3C50C60282C55AC042EDF /* I'm So Blessed-chords-D.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 9DD48E38F5779A4CEB59D3CB /* I'm So Blessed-chords-D.pdf */; };
 		5A8DB10D6790B0630E697853 /* MIDIRouteMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC8109AF3F38CCE238F1A25 /* MIDIRouteMap.swift */; };
 		61439E4ACA0CF81350248FF7 /* ChordDiagram.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41BB546B7D9658C33A57F9DB /* ChordDiagram.swift */; };
+		61C92D363343F333FB54D900 /* Guitars.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A60633CCE04B60462937752 /* Guitars.swift */; };
 		67862352AB7F214372D0D397 /* PlaybackSyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAACFE9F57E93F1F9E143B57 /* PlaybackSyncView.swift */; };
 		70260258E1BF55CC5785D8B7 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60880C5D22BD5AC229020529 /* ContentView.swift */; };
 		764CC3F88BD4AFA421CEAD58 /* SongSelectImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DB04444EAE1AF678B06E54D /* SongSelectImport.swift */; };
@@ -42,6 +43,7 @@
 		91E4FEA2B78FC52C09672767 /* Helix.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA99902CD7D40BE180FA742 /* Helix.swift */; };
 		9568F080B46CC2BBB7C9EA0A /* MIDIRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F61072584D1025027F4B4F1E /* MIDIRouter.swift */; };
 		98C9B59C2C8F432C3B80A56B /* SongLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 091B996D7D21DDF52EDF2838 /* SongLibrary.swift */; };
+		99459916D318ACB44D7E4D47 /* PageTurn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1DCCB6F35B8956361516AF /* PageTurn.swift */; };
 		9E10E39F98D2A44B25D762DC /* MIDIClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 819548E19474BA1CE0510CBE /* MIDIClock.swift */; };
 		A3229691406201F0D6245FD4 /* Cornerstone-chords-C.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 3955B0F5E1067CE8CCC3311C /* Cornerstone-chords-C.pdf */; };
 		AAC37DBF3FB2D844CC262D98 /* CCLIReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FC899D2D34CC1FB2328FC83 /* CCLIReport.swift */; };
@@ -51,7 +53,6 @@
 		B5F4F951EB4787FBB487E842 /* AIViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1669DC711DD54201DAD6ED78 /* AIViews.swift */; };
 		C2BD641BB4A6A8BA4DBAD647 /* SetList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 632281883DC5E105CAF56FC7 /* SetList.swift */; };
 		C2FC4A842656B03ECC732E39 /* NotesAndNextUp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BE29341E15A4E650FA9B446 /* NotesAndNextUp.swift */; };
-		D11AA66305894A70B0516E5C /* Guitars.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86E032B9EE41437185E58D1F /* Guitars.swift */; };
 		CBCB2F39D24FA7DF8E365F10 /* Printing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E9BDFB037C4244B90B476FC /* Printing.swift */; };
 		CD22E208E5EE5FB60DA6C967 /* ChartCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EB08FE317E2A659031F22C2 /* ChartCapture.swift */; };
 		D53480A34A8E7338D5F6A057 /* Way Maker-chords-E.pdf in Resources */ = {isa = PBXBuildFile; fileRef = CDBFDF7E21566C93BA44FE75 /* Way Maker-chords-E.pdf */; };
@@ -65,9 +66,11 @@
 /* Begin PBXFileReference section */
 		06C7608B97160325CB244EA2 /* LinkSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkSession.swift; sourceTree = "<group>"; };
 		091B996D7D21DDF52EDF2838 /* SongLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SongLibrary.swift; sourceTree = "<group>"; };
+		0A1DCCB6F35B8956361516AF /* PageTurn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageTurn.swift; sourceTree = "<group>"; };
 		1669DC711DD54201DAD6ED78 /* AIViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIViews.swift; sourceTree = "<group>"; };
 		188AD18ACA037E4C924A1943 /* This Is How I Thank The Lord-chords-G.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "This Is How I Thank The Lord-chords-G.pdf"; sourceTree = "<group>"; };
 		18F217431FCFBDA2D948BF85 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		1A60633CCE04B60462937752 /* Guitars.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Guitars.swift; sourceTree = "<group>"; };
 		1DB04444EAE1AF678B06E54D /* SongSelectImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SongSelectImport.swift; sourceTree = "<group>"; };
 		21A29976A890994F13ECF760 /* ChartStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartStyle.swift; sourceTree = "<group>"; };
 		23840792A5816EF08D21098D /* LinkKitResources.bundle */ = {isa = PBXFileReference; lastKnownFileType = wrapper.cfbundle; path = LinkKitResources.bundle; sourceTree = "<group>"; };
@@ -81,7 +84,6 @@
 		4547B3556E743C036C9499A3 /* House Of The Lord-chords-Bb.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "House Of The Lord-chords-Bb.pdf"; sourceTree = "<group>"; };
 		471BF70D51D2B70D91E80B9E /* songselect-download.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = "songselect-download.js"; sourceTree = "<group>"; };
 		4BE29341E15A4E650FA9B446 /* NotesAndNextUp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotesAndNextUp.swift; sourceTree = "<group>"; };
-		86E032B9EE41437185E58D1F /* Guitars.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Guitars.swift; sourceTree = "<group>"; };
 		55FBD50C2C4893DEB5077DD6 /* OnSongImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnSongImporter.swift; sourceTree = "<group>"; };
 		5DA99902CD7D40BE180FA742 /* Helix.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Helix.swift; sourceTree = "<group>"; };
 		60880C5D22BD5AC229020529 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -201,6 +203,7 @@
 				41BB546B7D9658C33A57F9DB /* ChordDiagram.swift */,
 				60880C5D22BD5AC229020529 /* ContentView.swift */,
 				F610E83180951504B6804CAF /* GoogleDriveSync.swift */,
+				1A60633CCE04B60462937752 /* Guitars.swift */,
 				5DA99902CD7D40BE180FA742 /* Helix.swift */,
 				AA4DBFF941F031E7FCD6B8CD /* HelixViews.swift */,
 				B310C466F38F77069111DFE3 /* Info.plist */,
@@ -210,8 +213,8 @@
 				EAC8109AF3F38CCE238F1A25 /* MIDIRouteMap.swift */,
 				F61072584D1025027F4B4F1E /* MIDIRouter.swift */,
 				4BE29341E15A4E650FA9B446 /* NotesAndNextUp.swift */,
-				86E032B9EE41437185E58D1F /* Guitars.swift */,
 				55FBD50C2C4893DEB5077DD6 /* OnSongImporter.swift */,
+				0A1DCCB6F35B8956361516AF /* PageTurn.swift */,
 				F1A5BA7E448D4DA7AF76F21D /* PDFSongs.swift */,
 				64D26BC6C6E3018DC56ED470 /* PlaybackSyncEngine.swift */,
 				EAACFE9F57E93F1F9E143B57 /* PlaybackSyncView.swift */,
@@ -363,6 +366,7 @@
 				61439E4ACA0CF81350248FF7 /* ChordDiagram.swift in Sources */,
 				70260258E1BF55CC5785D8B7 /* ContentView.swift in Sources */,
 				2EF3C70C5C943BC762437527 /* GoogleDriveSync.swift in Sources */,
+				61C92D363343F333FB54D900 /* Guitars.swift in Sources */,
 				91E4FEA2B78FC52C09672767 /* Helix.swift in Sources */,
 				7D8A8F3B37A602DD049AF85F /* HelixViews.swift in Sources */,
 				8C83911A7714DB62CD44AEA4 /* LinkSession.swift in Sources */,
@@ -371,9 +375,9 @@
 				5A8DB10D6790B0630E697853 /* MIDIRouteMap.swift in Sources */,
 				9568F080B46CC2BBB7C9EA0A /* MIDIRouter.swift in Sources */,
 				C2FC4A842656B03ECC732E39 /* NotesAndNextUp.swift in Sources */,
-				D11AA66305894A70B0516E5C /* Guitars.swift in Sources */,
 				AFAFE8471767F73ACB5F5E83 /* OnSongImporter.swift in Sources */,
 				3E5E1B8230DD2B52B1CDF795 /* PDFSongs.swift in Sources */,
+				99459916D318ACB44D7E4D47 /* PageTurn.swift in Sources */,
 				21E310C2C080D23C286791D1 /* PlaybackSyncEngine.swift in Sources */,
 				67862352AB7F214372D0D397 /* PlaybackSyncView.swift in Sources */,
 				CBCB2F39D24FA7DF8E365F10 /* Printing.swift in Sources */,

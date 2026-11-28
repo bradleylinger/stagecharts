@@ -535,6 +535,7 @@ struct ContentView: View {
               let i = set.items.firstIndex(where: { "item:" + $0.id.uuidString == new }) else { return }
         if let snap = set.items[i].helixSnapshot { midi.sendHelixSnapshot(snap) }
         if let g = guitars.guitar(for: set.items[i], in: set) { midi.sendHelixGuitar(g) }
+        MC8Link.shared.label(switches: library.helixSwitchNames(set))
         if !fromRemote { midi.announceSongPicked(position: i + 1) }
     }
 

@@ -174,6 +174,7 @@ final class MIDIController: ObservableObject {
                 MIDIObjectGetIntegerProperty(MIDIEndpointRef(UInt(bitPattern: refCon)), kMIDIPropertyUniqueID, &uid)
                 router.route(list, sourceID: uid)
             }
+            MC8Link.collect(list, source: refCon.map { UInt(bitPattern: $0) } ?? 0)   // SysEx replies (MC8)
             let messages = MIDIController.decode(list)
             guard !messages.isEmpty else { return }
             Task { @MainActor in messages.forEach { self?.handle($0) } }
@@ -189,6 +190,7 @@ final class MIDIController: ObservableObject {
         MIDISourceCreateWithProtocol(client, "StageCharts" as CFString, ._1_0, &virtualSource)
         let (port, source) = (outputPort, virtualSource)
         router.configure(port: port, appsOutput: source)
+        MC8Link.shared.configure(port: port)
         router.setRoutes(routes)
         clock.output = { words, time, toNetwork in
             var list = MIDIEventList()

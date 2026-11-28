@@ -55,6 +55,7 @@
 		C2FC4A842656B03ECC732E39 /* NotesAndNextUp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BE29341E15A4E650FA9B446 /* NotesAndNextUp.swift */; };
 		CBCB2F39D24FA7DF8E365F10 /* Printing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E9BDFB037C4244B90B476FC /* Printing.swift */; };
 		CD22E208E5EE5FB60DA6C967 /* ChartCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EB08FE317E2A659031F22C2 /* ChartCapture.swift */; };
+		CDA0D06F1F8495B7BC77C50F /* MorningstarMC8.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DB01670C4333333D24C56D9 /* MorningstarMC8.swift */; };
 		D53480A34A8E7338D5F6A057 /* Way Maker-chords-E.pdf in Resources */ = {isa = PBXBuildFile; fileRef = CDBFDF7E21566C93BA44FE75 /* Way Maker-chords-E.pdf */; };
 		D77A2543056C3F26BD86F23C /* AISetBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4EF5C844EA62ACC9B49F009 /* AISetBuilder.swift */; };
 		DBC1C47D4E8C675A3CA11ED7 /* Amazing Grace (SongSelect 22025).chordpro in Resources */ = {isa = PBXBuildFile; fileRef = 3A45187F87DBFD0FAE8A5C89 /* Amazing Grace (SongSelect 22025).chordpro */; };
@@ -86,6 +87,7 @@
 		4BE29341E15A4E650FA9B446 /* NotesAndNextUp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotesAndNextUp.swift; sourceTree = "<group>"; };
 		55FBD50C2C4893DEB5077DD6 /* OnSongImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnSongImporter.swift; sourceTree = "<group>"; };
 		5DA99902CD7D40BE180FA742 /* Helix.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Helix.swift; sourceTree = "<group>"; };
+		5DB01670C4333333D24C56D9 /* MorningstarMC8.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningstarMC8.swift; sourceTree = "<group>"; };
 		60880C5D22BD5AC229020529 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		612802D3AC5B7FD50E44A145 /* MIDIController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MIDIController.swift; sourceTree = "<group>"; };
 		632281883DC5E105CAF56FC7 /* SetList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetList.swift; sourceTree = "<group>"; };
@@ -212,6 +214,7 @@
 				612802D3AC5B7FD50E44A145 /* MIDIController.swift */,
 				EAC8109AF3F38CCE238F1A25 /* MIDIRouteMap.swift */,
 				F61072584D1025027F4B4F1E /* MIDIRouter.swift */,
+				5DB01670C4333333D24C56D9 /* MorningstarMC8.swift */,
 				4BE29341E15A4E650FA9B446 /* NotesAndNextUp.swift */,
 				55FBD50C2C4893DEB5077DD6 /* OnSongImporter.swift */,
 				0A1DCCB6F35B8956361516AF /* PageTurn.swift */,
@@ -374,6 +377,7 @@
 				B1AF04A2A02CC3C57A1CB5D5 /* MIDIController.swift in Sources */,
 				5A8DB10D6790B0630E697853 /* MIDIRouteMap.swift in Sources */,
 				9568F080B46CC2BBB7C9EA0A /* MIDIRouter.swift in Sources */,
+				CDA0D06F1F8495B7BC77C50F /* MorningstarMC8.swift in Sources */,
 				C2FC4A842656B03ECC732E39 /* NotesAndNextUp.swift in Sources */,
 				AFAFE8471767F73ACB5F5E83 /* OnSongImporter.swift in Sources */,
 				3E5E1B8230DD2B52B1CDF795 /* PDFSongs.swift in Sources */,

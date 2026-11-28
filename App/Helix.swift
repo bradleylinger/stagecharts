@@ -443,6 +443,22 @@ extension SongLibrary {
 
     /// Snapshot names of the set's preset: saved with the set, else read from the preset file
     /// (sets saved before names were stored). Empty when the set has no preset.
+    /// What the set's Helix preset put on automation Switches 1–6 (block names; "" = unassigned), for MC8 labels.
+    func helixSwitchNames(_ set: SetList) -> [String] {
+        guard let file = set.helixPreset,
+              let data = try? Data(contentsOf: helixFolder.appendingPathComponent(file)),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let tone = (root["data"] as? [String: Any])?["tone"] as? [String: Any],
+              let slots = (tone["automation"] as? [String: Any])?["@assignments"] as? [Any] else { return [] }
+        let dsp = tone["dsp0"] as? [String: Any] ?? [:]
+        return (16..<22).map { slot in
+            guard slot < slots.count, let a = slots[slot] as? [String: Any], let param = a["@param"] as? String else { return "" }
+            let block = param.split(separator: ".").dropFirst().first.map(String.init) ?? ""    // dsp0.block3.@enabled
+            guard let model = (dsp[block] as? [String: Any])?["@model"] as? String else { return "" }
+            return HelixCatalog.displayName(model)
+        }
+    }
+
     func helixSnapshotNames(_ set: SetList) -> [String] {
         if let names = set.helixSnapshotNames { return names }
         guard let file = set.helixPreset,

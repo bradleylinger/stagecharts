@@ -65,6 +65,8 @@ struct HelixSettingsSection: View {
                 Text("Helix Native's automation Knobs and Switches that your MIDI controller reaches (in Ableton, MIDI-map them on the Helix Native device). Each preset assigns them: Knob 1 to your volume pedal, the other knobs to settings worth riding, and the switches to effects worth turning on and off. The preset shows which is which.")
             }
 
+            MC8Section()
+
             Section {
                 Toggle("Add a guitar block that matches my guitar", isOn: $guitarBlock)
                 Picker("Usual guitar", selection: $guitars.defaultID) {
@@ -599,6 +601,34 @@ struct AbletonSetupGuide: View {
             }
             Spacer()
             Button("Send \(cc)", action: send)
+        }
+    }
+}
+
+
+/// Settings → Helix → Morningstar MC8: label the StageCharts bank's switch presets for each song.
+struct MC8Section: View {
+    @EnvironmentObject var midi: MIDIController
+    @ObservedObject private var mc8 = MC8Link.shared
+    @AppStorage(MC8Link.enabledKey) private var enabled = false
+    @AppStorage(MC8Link.outputKey) private var output = 0
+    @AppStorage(MC8Link.bankKey) private var bank = "StageCharts"
+
+    var body: some View {
+        Section {
+            Toggle("Label the MC8's switches for each song", isOn: $enabled)
+            if enabled {
+                Picker("MC8 is on", selection: $output) {
+                    Text("Choose…").tag(0)
+                    ForEach(midi.outputs) { o in Text(o.name).tag(Int(o.id)) }
+                }
+                TextField("Bank name", text: $bank)
+                HStack { Text("Status"); Spacer(); Text(mc8.status).foregroundColor(.secondary).multilineTextAlignment(.trailing) }
+            }
+        } header: {
+            Text("Morningstar MC8")
+        } footer: {
+            Text("For the MC8's “\(bank)” bank: A = page down (CC 80), E = page up (CC 81), B C D F G H = Switches 1–6 (CC 49–54 on channel 2). When a song opens, StageCharts names B–D and F–H after what the set's Helix preset put on Switches 1–6. Names are only sent when the MC8 is on that bank, and aren't saved, so other banks are never changed. Close the Morningstar Editor while playing – it can undo the names.")
         }
     }
 }

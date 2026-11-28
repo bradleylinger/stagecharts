@@ -1,5 +1,6 @@
 import Foundation
 import CoreMIDI
+import StageMIDI
 
 /// One MIDI thru route, like an Ableton MIDI track with "MIDI From" → "MIDI To":
 /// channel messages from an input (optionally one channel) go to an output (optionally on another channel).
@@ -78,10 +79,8 @@ struct MIDIActivity: Identifiable {
         }
     }
     static func channel(_ w: UInt32) -> Int { Int((w >> 16) & 0xF) + 1 }
-    static func noteName(_ n: Int) -> String {
-        let names = ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"]
-        return "\(names[n % 12])\(n / 12 - 1)"
-    }
+    /// Same names as Learn and Ableton (middle C = C3, note 0 = C-2).
+    static func noteName(_ n: Int) -> String { MIDITrigger.noteName(n) }
 }
 
 /// A MIDI endpoint as shown in pickers.
